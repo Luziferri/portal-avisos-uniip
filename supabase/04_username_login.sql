@@ -1,6 +1,14 @@
 -- UNIIP - Backward-compatible username migration
 -- Run this if the database already exists with the old schema.
 
+do $$
+begin
+  alter type public.user_role add value if not exists 'Secretaria';
+exception
+  when duplicate_object then null;
+end
+$$;
+
 alter table public.profiles
   add column if not exists username text;
 

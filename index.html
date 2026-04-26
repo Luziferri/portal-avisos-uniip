@@ -204,6 +204,13 @@
           username: "armindo",
           password: "aluno123",
         },
+        secretaria: {
+          role: "Secretaria",
+          name: "Secretaria UNIIP",
+          email: "secretaria@uniip.pt",
+          username: "secretaria",
+          password: "secret123",
+        },
       };
 
       const formatDate = (value) =>
@@ -361,6 +368,7 @@
           feed: "#feed",
           filtros: "#filtros",
           professor: "#publicar",
+          secretaria: "#utilizadores",
         };
 
         const [session, setSession] = useState(() => {
@@ -398,6 +406,19 @@
         const [selectedCategory, setSelectedCategory] = useState("Todas");
         const [announcements, setAnnouncements] = useState([]);
         const [visibleAnnouncements, setVisibleAnnouncements] = useState([]);
+        const [managedUsers, setManagedUsers] = useState([]);
+        const [userManagementLoading, setUserManagementLoading] =
+          useState(false);
+        const [userManagementError, setUserManagementError] = useState("");
+        const [userManagementInfo, setUserManagementInfo] = useState("");
+        const [userForm, setUserForm] = useState({
+          fullName: "",
+          email: "",
+          username: "",
+          password: "",
+          role: "Aluno",
+          school: "ESCE",
+        });
         const [activeSection, setActiveSection] = useState("feed");
         const [currentView, setCurrentView] = useState("dashboard");
         const announcementsRequestRef = useRef(0);
@@ -405,6 +426,7 @@
         const isDark = themeMode === "dark";
         const currentAccount = profile || session;
         const supabaseReady = Boolean(supabaseClient);
+        const isSecretaria = currentAccount?.role === "Secretaria";
 
         const loadAnnouncements = async () => {
           if (!supabaseClient) return [];
@@ -457,6 +479,34 @@
             return data;
           } catch (err) {
             return null;
+          }
+        };
+
+        const loadManagedUsers = async () => {
+          if (!supabaseClient || !isSecretaria) {
+            setManagedUsers([]);
+            return;
+          }
+
+          setUserManagementLoading(true);
+          setUserManagementError("");
+
+          try {
+            const { data, error } = await supabaseClient.rpc(
+              "secretaria_list_users",
+            );
+
+            if (error) {
+              throw error;
+            }
+
+            setManagedUsers(data || []);
+          } catch (error) {
+            setUserManagementError(
+              error.message || "Não foi possível carregar os utilizadores.",
+            );
+          } finally {
+            setUserManagementLoading(false);
           }
         };
 
@@ -674,6 +724,17 @@
         }, [loginRole]);
 
         useEffect(() => {
+          if (isSecretaria) {
+            loadManagedUsers();
+            return;
+          }
+
+          setManagedUsers([]);
+          setUserManagementError("");
+          setUserManagementInfo("");
+        }, [isSecretaria, session?.id]);
+
+        useEffect(() => {
           if (!currentAccount) {
             return;
           }
@@ -697,6 +758,8 @@
           const sectionIds =
             currentAccount.role === "Professor"
               ? ["feed", "filtros", "professor"]
+              : currentAccount.role === "Secretaria"
+                ? ["feed", "filtros", "secretaria"]
               : ["feed", "filtros"];
 
           const sections = sectionIds
@@ -743,6 +806,11 @@
               nextSection = "filtros";
             } else if (hash === "#publicar" && session?.role === "Professor") {
               nextSection = "professor";
+            } else if (
+              hash === "#utilizadores" &&
+              session?.role === "Secretaria"
+            ) {
+              nextSection = "secretaria";
             }
 
             setCurrentView("dashboard");
@@ -916,6 +984,88 @@
           }
         };
 
+        const handleCreateUser = async (event) => {
+          event.preventDefault();
+
+          if (!isSecretaria || !supabaseClient) {
+            setUserManagementError(
+              "Apenas a secretaria pode adicionar utilizadores.",
+            );
+            return;
+          }
+
+          if (
+            !userForm.fullName.trim() ||
+            !userForm.email.trim() ||
+            !userForm.username.trim() ||
+            !userForm.password
+          ) {
+            setUserManagementError("Preenche todos os campos obrigatórios.");
+            return;
+          }
+
+          setUserManagementError("");
+          setUserManagementInfo("A criar utilizador...");
+
+          try {
+            const { error } = await supabaseClient.rpc("secretaria_create_user", {
+              p_full_name: userForm.fullName.trim(),
+              p_email: userForm.email.trim().toLowerCase(),
+              p_username: userForm.username.trim().toLowerCase(),
+              p_password: userForm.password,
+              p_role: userForm.role,
+              p_school: userForm.school,
+            });
+
+            if (error) {
+              throw error;
+            }
+
+            setUserManagementInfo("Utilizador criado com sucesso.");
+            setUserForm((current) => ({
+              ...current,
+              fullName: "",
+              email: "",
+              username: "",
+              password: "",
+              role: "Aluno",
+            }));
+            await loadManagedUsers();
+          } catch (error) {
+            setUserManagementInfo("");
+            setUserManagementError(
+              error.message || "Não foi possível criar o utilizador.",
+            );
+          }
+        };
+
+        const handleDeleteUser = async (targetUserId) => {
+          if (!isSecretaria || !supabaseClient || !targetUserId) {
+            return;
+          }
+
+          setUserManagementError("");
+          setUserManagementInfo("A remover utilizador...");
+
+          try {
+            const { error } = await supabaseClient.rpc("secretaria_delete_user", {
+              target_user_id: targetUserId,
+            });
+
+            if (error) {
+              throw error;
+            }
+
+            setUserManagementInfo("Utilizador removido com sucesso.");
+            await loadManagedUsers();
+          } catch (error) {
+            setUserManagementInfo("");
+            setUserManagementError(
+              error.message || "Não foi possível remover o utilizador.",
+            );
+          }
+        };
+
         useEffect(() => {
           const filtered = announcements
             .filter((announcement) => {
@@ -1056,6 +1206,20 @@
                           Password: aluno123
                         </div>
                       </div>
+                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 md:col-span-2">
+                        <div className="text-sm text-slate-500">
+                          Conta de teste da secretaria
+                        </div>
+                        <div className="mt-2 font-semibold text-ink-950">
+                          secretaria@uniip.pt
+                        </div>
+                        <div className="text-sm text-ink-600">
+                          Username: secretaria
+                        </div>
+                        <div className="text-sm text-ink-600">
+                          Password: secret123
+                        </div>
+                      </div>
                     </div>
             
                   </section>
@@ -1077,6 +1241,7 @@
                       {[
                         { key: "aluno", label: "Aluno" },
                         { key: "professor", label: "Professor" },
+                        { key: "secretaria", label: "Secretaria" },
                       ].map((option) => (
                         <button
                           key={option.key}
@@ -1229,6 +1394,9 @@
                         { id: "feed", label: "Feed" },
                         ...(currentAccount.role === "Professor"
                           ? [{ id: "professor", label: "Publicar" }]
+                          : []),
+                        ...(currentAccount.role === "Secretaria"
+                          ? [{ id: "secretaria", label: "Utilizadores" }]
                           : []),
                         { id: "account", label: "Conta" },
                       ].map((item) => (
@@ -1438,6 +1606,242 @@
                     </section>
                   ) : (
                     <>
+                      {currentAccount.role === "Secretaria" ? (
+                        <section
+                          className="panel scroll-mt-24 space-y-4 p-5"
+                          id="secretaria"
+                        >
+                          <div className="flex items-end justify-between gap-4">
+                            <div>
+                              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                                Administração
+                              </p>
+                              <h2 className="text-xl font-semibold text-ink-950">
+                                Gestão de utilizadores
+                              </h2>
+                              <p className="text-sm text-ink-600">
+                                Adicione novos utilizadores e remova contas existentes.
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={loadManagedUsers}
+                              className="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-ink-700 transition hover:bg-slate-50"
+                            >
+                              Atualizar
+                            </button>
+                          </div>
+
+                          <form
+                            className="grid gap-4 rounded-lg border border-slate-200 bg-slate-50 p-4 lg:grid-cols-[1.6fr_1fr]"
+                            onSubmit={handleCreateUser}
+                          >
+                            <div className="grid gap-4 sm:grid-cols-2">
+                              <label className="block space-y-2 sm:col-span-2">
+                                <span className="text-sm font-medium text-ink-700">
+                                  Nome completo
+                                </span>
+                                <input
+                                  value={userForm.fullName}
+                                  onChange={(event) =>
+                                    setUserForm((current) => ({
+                                      ...current,
+                                      fullName: event.target.value,
+                                    }))
+                                  }
+                                  className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-ink-900"
+                                  placeholder="Nome do utilizador"
+                                />
+                              </label>
+
+                              <label className="block space-y-2">
+                                <span className="text-sm font-medium text-ink-700">
+                                  Email
+                                </span>
+                                <input
+                                  type="email"
+                                  value={userForm.email}
+                                  onChange={(event) =>
+                                    setUserForm((current) => ({
+                                      ...current,
+                                      email: event.target.value,
+                                    }))
+                                  }
+                                  className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-ink-900"
+                                  placeholder="utilizador@uniip.pt"
+                                />
+                              </label>
+
+                              <label className="block space-y-2">
+                                <span className="text-sm font-medium text-ink-700">
+                                  Username
+                                </span>
+                                <input
+                                  value={userForm.username}
+                                  onChange={(event) =>
+                                    setUserForm((current) => ({
+                                      ...current,
+                                      username: event.target.value,
+                                    }))
+                                  }
+                                  className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-ink-900"
+                                  placeholder="username"
+                                />
+                              </label>
+
+                              <label className="block space-y-2">
+                                <span className="text-sm font-medium text-ink-700">
+                                  Password
+                                </span>
+                                <input
+                                  type="password"
+                                  value={userForm.password}
+                                  onChange={(event) =>
+                                    setUserForm((current) => ({
+                                      ...current,
+                                      password: event.target.value,
+                                    }))
+                                  }
+                                  className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-ink-900"
+                                  placeholder="Mínimo 6 caracteres"
+                                />
+                              </label>
+
+                              <label className="block space-y-2">
+                                <span className="text-sm font-medium text-ink-700">
+                                  Perfil
+                                </span>
+                                <select
+                                  value={userForm.role}
+                                  onChange={(event) =>
+                                    setUserForm((current) => ({
+                                      ...current,
+                                      role: event.target.value,
+                                    }))
+                                  }
+                                  className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-ink-900"
+                                >
+                                  <option value="Aluno">Aluno</option>
+                                  <option value="Professor">Professor</option>
+                                </select>
+                              </label>
+
+                              <label className="block space-y-2">
+                                <span className="text-sm font-medium text-ink-700">
+                                  Escola
+                                </span>
+                                <select
+                                  value={userForm.school}
+                                  onChange={(event) =>
+                                    setUserForm((current) => ({
+                                      ...current,
+                                      school: event.target.value,
+                                    }))
+                                  }
+                                  className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-ink-900"
+                                >
+                                  {Object.keys(schoolConfig).map((school) => (
+                                    <option key={school} value={school}>
+                                      {school} - {schoolConfig[school].name}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+                            </div>
+
+                            <div className="flex flex-col justify-between gap-3">
+                              <p className="text-sm text-ink-600">
+                                Os novos utilizadores podem iniciar sessão com email ou username.
+                              </p>
+                              <button
+                                type="submit"
+                                className="inline-flex items-center justify-center rounded-md bg-ink-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-ink-800"
+                              >
+                                Criar utilizador
+                              </button>
+                            </div>
+                          </form>
+
+                          {userManagementError ? (
+                            <div className="rounded-md border border-coral-100 bg-coral-50 px-4 py-3 text-sm text-coral-500">
+                              {userManagementError}
+                            </div>
+                          ) : null}
+
+                          {userManagementInfo ? (
+                            <div className="rounded-md border border-accent-100 bg-accent-50 px-4 py-3 text-sm text-accent-600">
+                              {userManagementInfo}
+                            </div>
+                          ) : null}
+
+                          <div className="overflow-hidden rounded-lg border border-slate-200">
+                            <table className="min-w-full divide-y divide-slate-200 bg-white text-sm">
+                              <thead className="bg-slate-50 text-left text-xs uppercase tracking-[0.14em] text-slate-500">
+                                <tr>
+                                  <th className="px-4 py-3">Nome</th>
+                                  <th className="px-4 py-3">Username</th>
+                                  <th className="px-4 py-3">Email</th>
+                                  <th className="px-4 py-3">Perfil</th>
+                                  <th className="px-4 py-3">Escola</th>
+                                  <th className="px-4 py-3 text-right">Ação</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-200 text-ink-700">
+                                {managedUsers.map((user) => {
+                                  const isCurrentUser = user.id === session?.id;
+                                  return (
+                                    <tr key={user.id}>
+                                      <td className="px-4 py-3 font-semibold text-ink-950">
+                                        {user.full_name}
+                                      </td>
+                                      <td className="px-4 py-3">@{user.username}</td>
+                                      <td className="px-4 py-3">{user.email}</td>
+                                      <td className="px-4 py-3">{user.role}</td>
+                                      <td className="px-4 py-3">{user.school}</td>
+                                      <td className="px-4 py-3 text-right">
+                                        <button
+                                          type="button"
+                                          disabled={isCurrentUser}
+                                          onClick={() => handleDeleteUser(user.id)}
+                                          className={
+                                            "rounded-md px-3 py-1.5 text-xs font-semibold transition " +
+                                            (isCurrentUser
+                                              ? "cursor-not-allowed bg-slate-100 text-slate-400"
+                                              : "bg-coral-50 text-coral-500 hover:bg-coral-100")
+                                          }
+                                        >
+                                          Remover
+                                        </button>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                                {managedUsers.length === 0 && !userManagementLoading ? (
+                                  <tr>
+                                    <td
+                                      colSpan="6"
+                                      className="px-4 py-8 text-center text-sm text-slate-500"
+                                    >
+                                      Sem utilizadores para mostrar.
+                                    </td>
+                                  </tr>
+                                ) : null}
+                                {userManagementLoading ? (
+                                  <tr>
+                                    <td
+                                      colSpan="6"
+                                      className="px-4 py-8 text-center text-sm text-slate-500"
+                                    >
+                                      A carregar utilizadores...
+                                    </td>
+                                  </tr>
+                                ) : null}
+                              </tbody>
+                            </table>
+                          </div>
+                        </section>
+                      ) : null}
+
                       {currentAccount.role === "Professor" ? (
                         <section
                           className="panel scroll-mt-24 space-y-4 p-5"

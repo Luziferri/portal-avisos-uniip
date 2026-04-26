@@ -38,6 +38,14 @@ const usersToSeed = [
     role: "Aluno",
     school: "ESCE",
   },
+  {
+    email: "secretaria@uniip.pt",
+    password: "secret123",
+    full_name: "Secretaria UNIIP",
+    username: "secretaria",
+    role: "Secretaria",
+    school: "ESCE",
+  },
 ];
 
 async function upsertUser(user) {

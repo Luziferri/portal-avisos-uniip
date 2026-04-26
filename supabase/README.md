@@ -1,6 +1,6 @@
 # Migração Supabase - UNIIP
 
-Este diretório contém o setup base para migrar a app para Supabase com autenticação real, perfis por role (Professor/Aluno) e RLS por escola.
+Este diretório contém o setup base para migrar a app para Supabase com autenticação real, perfis por role (Professor/Aluno/Secretaria) e RLS por escola.
 
 ## Pré-requisitos
 - Projeto criado no Supabase.
@@ -14,6 +14,7 @@ No SQL Editor do Supabase, executar nesta ordem:
 2. `02_rls.sql`
 3. `03_seed_announcements.sql` (opcional, apenas dados de exemplo)
 4. `04_username_login.sql` se a base já tinha o schema antigo e queres acrescentar login por username
+5. `05_secretaria_user_management.sql` para permitir que a Secretaria liste/crie/remova utilizadores
 
 Se aplicares fora de ordem, podes ter erros de tipos/tabelas/policies inexistentes.
 
@@ -37,9 +38,11 @@ node supabase/seed-users.mjs
 O script cria/atualiza:
 - `professor@uniip.pt` (Professor)
 - `aluno@uniip.pt` (Aluno)
+- `secretaria@uniip.pt` (Secretaria)
 - usernames:
 	- `professor`
 	- `armindo`
+	- `secretaria`
 
 Nota de segurança:
 - A `SUPABASE_SERVICE_ROLE_KEY` dá privilégios totais.
@@ -61,6 +64,7 @@ Sugestão prática:
 - `02_rls.sql`: políticas de acesso por role/escola/autor.
 - `03_seed_announcements.sql`: avisos de exemplo.
 - `seed-users.mjs`: seed idempotente de utilizadores no Auth.
+- `05_secretaria_user_management.sql`: funções RPC para gestão de utilizadores pela Secretaria.
 
 ## 5) Próximo passo no frontend
 Integrar Supabase no `index.html` e substituir:

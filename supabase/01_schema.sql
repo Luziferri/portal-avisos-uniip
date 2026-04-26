@@ -6,7 +6,15 @@ create extension if not exists pgcrypto;
 -- Domain enums
 do $$
 begin
-  create type public.user_role as enum ('Professor', 'Aluno');
+  create type public.user_role as enum ('Professor', 'Aluno', 'Secretaria');
+exception
+  when duplicate_object then null;
+end
+$$;
+
+do $$
+begin
+  alter type public.user_role add value if not exists 'Secretaria';
 exception
   when duplicate_object then null;
 end
