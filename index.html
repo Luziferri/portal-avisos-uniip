@@ -1,0 +1,1413 @@
+<!DOCTYPE html>
+<html lang="pt">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Portal de Avisos Universitários</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              ink: {
+                950: "#07131f",
+                900: "#0c1724",
+                800: "#152638",
+                700: "#24384d",
+                600: "#3a5167",
+              },
+              accent: {
+                50: "#eef6f2",
+                100: "#d8e8df",
+                500: "#2d8a66",
+                600: "#246c50",
+              },
+              sun: {
+                50: "#fbf7ef",
+                100: "#ede0c7",
+                500: "#b98a37",
+              },
+              coral: {
+                50: "#fdf2f2",
+                100: "#f7d7d7",
+                500: "#c95b57",
+              },
+              cyan: {
+                50: "#eef7fb",
+                100: "#d8eaf2",
+                500: "#2d7ea5",
+              },
+              violet: {
+                50: "#f2f2f7",
+                100: "#e0e4ee",
+                500: "#566178",
+              },
+            },
+            boxShadow: {
+              glow: "0 18px 50px rgba(9, 15, 31, 0.18)",
+            },
+          },
+        },
+      };
+    </script>
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Source+Serif+4:wght@600;700&display=swap");
+
+      :root {
+        --page-bg: #f2f4f7;
+        --surface: #ffffff;
+        --surface-muted: #f8fafc;
+        --line: #d8dee8;
+        --text-primary: #0f1d2e;
+      }
+
+      body {
+        font-family: "IBM Plex Sans", sans-serif;
+        background: var(--page-bg);
+        color: var(--text-primary);
+      }
+
+      .display-title {
+        font-family: "Source Serif 4", serif;
+        letter-spacing: -0.01em;
+      }
+
+      .panel {
+        border: 1px solid var(--line);
+        background: var(--surface);
+        border-radius: 1rem;
+      }
+
+      html.theme-dark,
+      html.theme-dark body {
+        background: #0f141c;
+        color: #e5eef8;
+      }
+
+      html.theme-dark [class*="bg-white"] {
+        background-color: #151b24 !important;
+      }
+
+      html.theme-dark [class*="bg-slate-50"] {
+        background-color: #111722 !important;
+      }
+
+      html.theme-dark [class*="bg-slate-100"] {
+        background-color: #18202c !important;
+      }
+
+      html.theme-dark [class*="border-slate-200"] {
+        border-color: #273041 !important;
+      }
+
+      html.theme-dark [class*="border-slate-300"] {
+        border-color: #344055 !important;
+      }
+
+      html.theme-dark .text-ink-950,
+      html.theme-dark .text-ink-900,
+      html.theme-dark .text-ink-800,
+      html.theme-dark .text-ink-700,
+      html.theme-dark .text-slate-700,
+      html.theme-dark .text-slate-600 {
+        color: #e5eef8 !important;
+      }
+
+      html.theme-dark .text-slate-500,
+      html.theme-dark .text-slate-400 {
+        color: #9aa7b8 !important;
+      }
+
+      html.theme-dark .shadow-glow {
+        box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+      }
+
+      html.theme-dark .panel {
+        border-color: #2b3547;
+        background: #151b24;
+      }
+    </style>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script type="text/babel" data-presets="react">
+      const { useEffect, useMemo, useRef, useState } = React;
+        
+      const SUPABASE_URL = "https://bgerpvpmngunuqvllnmy.supabase.co";
+      const SUPABASE_ANON_KEY = "sb_publishable_Q-s7cUs4is8Kp9v4sYxc3g_QdOfW8LI";
+      const supabaseClient =
+        SUPABASE_URL &&
+        SUPABASE_ANON_KEY &&
+        !SUPABASE_ANON_KEY.startsWith("PASTE_YOUR")
+          ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+          : null;
+
+      const schoolConfig = {
+        ESE: {
+          label: "ESE",
+          name: "Escola Superior de Educação",
+          classes: "bg-sky-50 text-sky-800 border-sky-200",
+          badge: "bg-sky-700",
+        },
+        EST: {
+          label: "EST",
+          name: "Escola Superior de Tecnologia",
+          classes: "bg-slate-100 text-slate-800 border-slate-300",
+          badge: "bg-slate-700",
+        },
+        ESS: {
+          label: "ESS",
+          name: "Escola Superior de Saúde",
+          classes: "bg-emerald-50 text-emerald-800 border-emerald-200",
+          badge: "bg-emerald-700",
+        },
+        ESCE: {
+          label: "ESCE",
+          name: "Escola Superior de Ciências Empresariais",
+          classes: "bg-amber-50 text-amber-800 border-amber-200",
+          badge: "bg-amber-700",
+        },
+      };
+
+      const categoryConfig = {
+        Evento: {
+          label: "Evento",
+          tone: "bg-ink-900 text-white",
+        },
+        Voluntariado: {
+          label: "Voluntariado",
+          tone: "bg-accent-600 text-white",
+        },
+        "Aviso Académico": {
+          label: "Aviso Académico",
+          tone: "bg-coral-500 text-white",
+        },
+      };
+
+      // Real announcements loaded from Supabase - see loadAnnouncements()
+
+      const mockAccounts = {
+        professor: {
+          role: "Professor",
+          name: "Prof.Armando Silva",
+          email: "professor@uniip.pt",
+          username: "professor",
+          password: "prof123",
+        },
+        aluno: {
+          role: "Aluno",
+          name: "Armindo",
+          email: "aluno@uniip.pt",
+          username: "armindo",
+          password: "aluno123",
+        },
+      };
+
+      const formatDate = (value) =>
+        new Intl.DateTimeFormat("pt-PT", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        }).format(new Date(value));
+
+      const isExpired = (expiresAt) =>
+        new Date(expiresAt).setHours(23, 59, 59, 999) < Date.now();
+
+      const Icon = ({ children, className = "" }) => (
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className={className}
+          aria-hidden="true"
+        >
+          {children}
+        </svg>
+      );
+
+      const Sparkles = (props) => (
+        <Icon {...props}>
+          <path d="M9 3l1.8 3.9L15 9l-4.2 2.1L9 15l-1.8-3.9L3 9l4.2-2.1L9 3z" />
+          <path d="M19 12l1.1 2.4L23 16l-2.9 1.6L19 20l-1.1-2.4L15 16l2.9-1.6L19 12z" />
+        </Icon>
+      );
+
+      const BellRing = (props) => (
+        <Icon {...props}>
+          <path d="M10.3 18a1.7 1.7 0 0 0 3.4 0" />
+          <path d="M4 14h16l-2-2V9a6 6 0 1 0-12 0v3l-2 2z" />
+          <path d="M17 4a7 7 0 0 1 0 10" />
+          <path d="M19.5 2.5a10 10 0 0 1 0 14" />
+        </Icon>
+      );
+
+      const Search = (props) => (
+        <Icon {...props}>
+          <circle cx="11" cy="11" r="7" />
+          <path d="M20 20l-3.5-3.5" />
+        </Icon>
+      );
+
+      const X = (props) => (
+        <Icon {...props}>
+          <path d="M18 6 6 18" />
+          <path d="M6 6l12 12" />
+        </Icon>
+      );
+
+      const CalendarDays = (props) => (
+        <Icon {...props}>
+          <rect x="3" y="5" width="18" height="16" rx="2" />
+          <path d="M16 3v4" />
+          <path d="M8 3v4" />
+          <path d="M3 10h18" />
+        </Icon>
+      );
+
+      const BookOpen = (props) => (
+        <Icon {...props}>
+          <path d="M2 5.5A3.5 3.5 0 0 1 5.5 2H21v18H5.5A3.5 3.5 0 0 0 2 23z" />
+          <path d="M2 5.5A3.5 3.5 0 0 1 5.5 2H21" />
+          <path d="M5.5 2v18" />
+        </Icon>
+      );
+
+      const GraduationCap = (props) => (
+        <Icon {...props}>
+          <path d="M22 10 12 5 2 10l10 5 10-5z" />
+          <path d="M6 12v4c0 1.8 2.7 4 6 4s6-2.2 6-4v-4" />
+          <path d="M22 10v6" />
+        </Icon>
+      );
+
+      const HeartHandshake = (props) => (
+        <Icon {...props}>
+          <path d="M20.8 12.2c1.1-1.2 1.1-3.1 0-4.3a3 3 0 0 0-4.2 0L15 9.5l1.6 1.6" />
+          <path d="M3.2 12.2c-1.1-1.2-1.1-3.1 0-4.3a3 3 0 0 1 4.2 0L9 9.5 7.4 11.1" />
+          <path d="M9 9.5 12 6l3 3.5" />
+          <path d="M8 14c.9.9 2.1 1.5 4 1.5s3.1-.6 4-1.5" />
+        </Icon>
+      );
+
+      const Globe2 = (props) => (
+        <Icon {...props}>
+          <circle cx="12" cy="12" r="9" />
+          <path d="M3 12h18" />
+          <path d="M12 3c2.5 2.7 4 5.7 4 9s-1.5 6.3-4 9c-2.5-2.7-4-5.7-4-9s1.5-6.3 4-9z" />
+        </Icon>
+      );
+
+      const Users = (props) => (
+        <Icon {...props}>
+          <path d="M17 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+          <circle cx="9" cy="7" r="4" />
+          <path d="M22 21v-2a3.5 3.5 0 0 0-2.8-3.4" />
+          <path d="M16 3.3a4 4 0 0 1 0 7.4" />
+        </Icon>
+      );
+
+      const Megaphone = (props) => (
+        <Icon {...props}>
+          <path d="M3 11v2a2 2 0 0 0 2 2h2l4 4V5L7 9H5a2 2 0 0 0-2 2z" />
+          <path d="M13 8a4 4 0 0 1 0 8" />
+          <path d="M16 6a7 7 0 0 1 0 12" />
+        </Icon>
+      );
+
+      function Dashboard() {
+        const sectionHashMap = {
+          feed: "#feed",
+          filtros: "#filtros",
+          professor: "#publicar",
+        };
+
+        const [session, setSession] = useState(() => {
+          return null;
+        });
+        const [profile, setProfile] = useState(null);
+        const [authReady, setAuthReady] = useState(false);
+        const [authLoading, setAuthLoading] = useState(true);
+        const [themeMode, setThemeMode] = useState(() => {
+          try {
+            return localStorage.getItem("uniip-theme") || "light";
+          } catch {
+            return "light";
+          }
+        });
+        const [publishError, setPublishError] = useState("");
+        const [loginRole, setLoginRole] = useState("aluno");
+        const [loginIdentifier, setLoginIdentifier] = useState(mockAccounts.aluno.username);
+        const [loginPassword, setLoginPassword] = useState(mockAccounts.aluno.password);
+        const [loginError, setLoginError] = useState("");
+        const [authInfo, setAuthInfo] = useState("");
+        const [announcementForm, setAnnouncementForm] = useState({
+          title: "",
+          description: "",
+          school: "ESE",
+          category: "Evento",
+          expiresAt: "",
+        });
+        const [search, setSearch] = useState("");
+        const [selectedSchool, setSelectedSchool] = useState("Todas");
+        const [selectedCategory, setSelectedCategory] = useState("Todas");
+        const [announcements, setAnnouncements] = useState([]);
+        const [visibleAnnouncements, setVisibleAnnouncements] = useState([]);
+        const [activeSection, setActiveSection] = useState("feed");
+        const [currentView, setCurrentView] = useState("dashboard");
+        const announcementsRequestRef = useRef(0);
+
+        const isDark = themeMode === "dark";
+        const currentAccount = profile || session;
+        const supabaseReady = Boolean(supabaseClient);
+
+        const loadAnnouncements = async () => {
+          if (!supabaseClient) return [];
+          try {
+            const query = supabaseClient
+              .from("announcements")
+              .select("id, title, description, school, category, created_at, expires_at")
+              .order("created_at", { ascending: false });
+
+            const { data } = await query;
+            return data || [];
+          } catch (err) {
+            console.error("Load announcements error:", err);
+            return [];
+          }
+        };
+
+   const loadProfile = async (user) => {
+          if (!supabaseClient || !user) return null;
+
+          try {
+            const PROFILE_TIMEOUT = 4500;
+            const timeoutMarker = Symbol("profile-timeout");
+            const timeoutPromise = new Promise((resolve) =>
+              setTimeout(() => resolve(timeoutMarker), PROFILE_TIMEOUT)
+            );
+
+            const profileRequest = supabaseClient
+              .from("profiles")
+              .select("id, full_name, username, role, school")
+              .eq("id", user.id)
+              .single();
+
+            const result = await Promise.race([profileRequest, timeoutPromise]);
+
+            // Keep auth flow responsive by falling back to a basic session.
+            if (result === timeoutMarker) {
+              return null;
+            }
+
+            const { data, error } = result;
+
+            if (error) {
+              // Missing profile rows are expected in some test scenarios.
+              return null;
+            }
+
+            return data;
+          } catch (err) {
+            return null;
+          }
+        };
+
+        useEffect(() => {
+          if (!supabaseClient) {
+            setAuthReady(true);
+            setAuthLoading(false);
+            setLoginError("Falta configurar a publishable key do Supabase.");
+            return undefined;
+          }
+
+          let active = true;
+
+          const bootstrap = async () => {
+          try {
+            const { data, error } = await supabaseClient.auth.getSession();
+
+            if (!active) {
+              return;
+            }
+
+            if (error) {
+              console.error("getSession error:", error.message);
+              setLoginError(error.message);
+              setAuthReady(true);
+              setAuthLoading(false);
+              return;
+            }
+
+            const nextUser = data.session?.user || null;
+
+            if (!nextUser) {
+              setSession(null);
+              setProfile(null);
+              setAuthReady(true);
+              setAuthLoading(false);
+              return;
+            }
+
+            try {
+              const nextProfile = await loadProfile(nextUser);
+              if (!active) {
+                return;
+              }
+
+              setProfile(nextProfile);
+              setSession({
+                id: nextUser.id,
+                email: nextUser.email,
+                role: nextProfile?.role || "Aluno",
+                name: nextProfile?.full_name || nextUser.email,
+                username: nextProfile?.username || splitLoginIdentifier(nextUser.email),
+                school: nextProfile?.school || "ESE",
+              });
+            } catch (profileError) {
+              if (!active) {
+                return;
+              }
+
+              console.error("Bootstrap profile error:", profileError.message || profileError);
+              // Fallback: still allow login with basic info from auth
+              setSession({
+                id: nextUser.id,
+                email: nextUser.email,
+                role: "Aluno",
+                name: nextUser.email,
+                username: splitLoginIdentifier(nextUser.email),
+                school: "ESE",
+              });
+              setProfile(null);
+              setLoginError(""); // Don't show error, silently use fallback
+            } finally {
+              if (active) {
+                setAuthReady(true);
+                setAuthLoading(false);
+              }
+            }
+          } catch (err) {
+            console.error("Bootstrap error:", err);
+            if (active) {
+              setAuthReady(true);
+              setAuthLoading(false);
+              setLoginError("Erro ao carregar sessão.");
+            }
+          }
+        };
+
+          bootstrap();
+
+          const {
+            data: { subscription },
+          } = supabaseClient.auth.onAuthStateChange(async (_event, nextSession) => {
+            if (!active) {
+              return;
+            }
+
+            try {
+              if (!nextSession?.user) {
+                setSession(null);
+                setProfile(null);
+                setAuthReady(true);
+                setAuthLoading(false);
+                return;
+              }
+
+              try {
+                const nextProfile = await loadProfile(nextSession.user);
+                if (!active) {
+                  return;
+                }
+
+                setProfile(nextProfile);
+                setSession({
+                  id: nextSession.user.id,
+                  email: nextSession.user.email,
+                  role: nextProfile?.role || "Aluno",
+                  name: nextProfile?.full_name || nextSession.user.email,
+                  username: nextProfile?.username || splitLoginIdentifier(nextSession.user.email),
+                  school: nextProfile?.school || "ESE",
+                });
+              } catch (profileError) {
+                if (!active) {
+                  return;
+                }
+
+                console.error("Auth state profile error:", profileError.message || profileError);
+                // Fallback: allow login with basic info
+                setSession({
+                  id: nextSession.user.id,
+                  email: nextSession.user.email,
+                  role: "Aluno",
+                  name: nextSession.user.email,
+                  username: splitLoginIdentifier(nextSession.user.email),
+                  school: "ESE",
+                });
+                setProfile(null);
+              }
+            } finally {
+              if (active) {
+                setAuthReady(true);
+                setAuthLoading(false);
+              }
+            }
+          });
+
+          return () => {
+            active = false;
+            subscription.unsubscribe();
+          };
+        }, []);
+
+        useEffect(() => {
+          const loadData = async () => {
+            const requestId = ++announcementsRequestRef.current;
+            const data = await loadAnnouncements();
+            if (requestId !== announcementsRequestRef.current) {
+              return;
+            }
+            setAnnouncements(data);
+          };
+
+          if (supabaseClient && currentView === "dashboard" && session) {
+            loadData();
+
+            // Sintaxe correta do Supabase V2
+            const subscription = supabaseClient
+              .channel('mudancas-avisos')
+              .on(
+                'postgres_changes', 
+                { event: '*', schema: 'public', table: 'announcements' }, 
+                (payload) => {
+                  loadData();
+                }
+              )
+              .subscribe();
+
+            return () => {
+              announcementsRequestRef.current += 1;
+              supabaseClient.removeChannel(subscription);
+            };
+          }
+        }, [supabaseClient, currentView, session]);
+
+        useEffect(() => {
+          try {
+            localStorage.setItem("uniip-theme", themeMode);
+          } catch {
+            // Ignore storage failures.
+          }
+
+          document.documentElement.classList.toggle("theme-dark", isDark);
+          document.documentElement.style.colorScheme = isDark ? "dark" : "light";
+        }, [themeMode, isDark]);
+
+        useEffect(() => {
+          const defaultAccount = mockAccounts[loginRole];
+          setLoginIdentifier(defaultAccount.username);
+          setLoginPassword(defaultAccount.password);
+          setLoginError("");
+          setAuthInfo("");
+        }, [loginRole]);
+
+        useEffect(() => {
+          if (!currentAccount) {
+            return;
+          }
+
+          const defaultSchool = currentAccount.role === "Professor" ? currentAccount.school || "ESCE" : currentAccount.school || "Todas";
+          setSelectedSchool(defaultSchool);
+        }, [currentAccount?.role, currentAccount?.school]);
+
+        useEffect(() => {
+          if (!currentAccount) {
+            return;
+          }
+
+          if (currentView !== "dashboard") {
+            return;
+          }
+
+          const sectionIds = currentAccount.role === "Professor"
+            ? ["feed", "filtros", "professor"]
+            : ["feed", "filtros"];
+
+          const sections = sectionIds
+            .map((id) => document.getElementById(id))
+            .filter(Boolean);
+
+          if (sections.length === 0) {
+            return;
+          }
+
+          const observer = new IntersectionObserver(
+            (entries) => {
+              const visible = entries
+                .filter((entry) => entry.isIntersecting)
+                .sort((a, b) => b.intersectionRatio - a.intersectionRatio);
+
+              if (visible[0]?.target?.id) {
+                setActiveSection(visible[0].target.id);
+              }
+            },
+            {
+              rootMargin: "-140px 0px -50% 0px",
+              threshold: [0.25, 0.5, 0.75],
+            }
+          );
+
+          sections.forEach((section) => observer.observe(section));
+
+          return () => observer.disconnect();
+        }, [currentAccount?.role, currentView]);
+
+        useEffect(() => {
+          const syncViewFromHash = () => {
+            const hash = window.location.hash.toLowerCase();
+
+            if (hash === "#conta") {
+              setCurrentView("account");
+              setActiveSection("account");
+              return;
+            }
+
+            let nextSection = "feed";
+            if (hash === "#filtros") {
+              nextSection = "filtros";
+            } else if (hash === "#publicar" && session?.role === "Professor") {
+              nextSection = "professor";
+            }
+
+            setCurrentView("dashboard");
+            setActiveSection(nextSection);
+
+            requestAnimationFrame(() => {
+              const target = document.getElementById(nextSection);
+              if (target) {
+                target.scrollIntoView({ behavior: "smooth", block: "start" });
+              }
+            });
+          };
+
+          syncViewFromHash();
+          window.addEventListener("hashchange", syncViewFromHash);
+
+          return () => window.removeEventListener("hashchange", syncViewFromHash);
+        }, [currentAccount?.role]);
+
+        const navigateToSection = (sectionId) => {
+          const nextHash = sectionHashMap[sectionId] || "#feed";
+
+          if (currentView !== "dashboard") {
+            setCurrentView("dashboard");
+            window.location.hash = nextHash;
+
+            requestAnimationFrame(() => {
+              const target = document.getElementById(sectionId);
+              if (target) {
+                target.scrollIntoView({ behavior: "smooth", block: "start" });
+                setActiveSection(sectionId);
+              }
+            });
+
+            return;
+          }
+
+          const target = document.getElementById(sectionId);
+
+          if (!target) {
+            return;
+          }
+
+          window.location.hash = nextHash;
+          target.scrollIntoView({ behavior: "smooth", block: "start" });
+          setActiveSection(sectionId);
+        };
+
+        const navigateToAccountPage = () => {
+          setCurrentView("account");
+          setActiveSection("account");
+          window.location.hash = "#conta";
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        };
+
+        const handleLogin = async (event) => {
+          event.preventDefault();
+
+          if (!supabaseClient) {
+            setLoginError("Falta configurar a publishable key do Supabase.");
+            return;
+          }
+
+          const identifier = loginIdentifier.trim().toLowerCase();
+          const password = loginPassword;
+
+          if (!identifier || !password) {
+            setLoginError("Preenche o email ou username e a password.");
+            return;
+          }
+
+          setLoginError("");
+          setAuthInfo("A autenticar...");
+
+          try {
+            let emailToUse = identifier;
+
+            if (!identifier.includes("@")) {
+              const { data, error } = await supabaseClient.rpc("resolve_login_email", {
+                login_identifier: identifier,
+              });
+
+              if (error || !data) {
+                throw new Error("Credenciais inválidas.");
+              }
+
+              emailToUse = data;
+            }
+
+            const { error } = await supabaseClient.auth.signInWithPassword({
+              email: emailToUse,
+              password,
+            });
+
+            if (error) {
+              throw error;
+            }
+
+            setAuthInfo("Sessão iniciada com sucesso.");
+            setCurrentView("dashboard");
+            setActiveSection("feed");
+            window.location.hash = "#feed";
+          } catch (error) {
+            setAuthInfo("");
+            setLoginError(error.message || "Não foi possível iniciar sessão.");
+          }
+        };
+
+        const handleLogout = async () => {
+          if (supabaseClient) {
+            await supabaseClient.auth.signOut();
+          }
+
+          setSession(null);
+          setProfile(null);
+          setAnnouncements([]);
+          setVisibleAnnouncements([]);
+          setCurrentView("dashboard");
+          setActiveSection("feed");
+          window.location.hash = "";
+        };
+
+        const toggleTheme = () => {
+          setThemeMode((current) => (current === "dark" ? "light" : "dark"));
+        };
+
+        const handleCreateAnnouncement = async (event) => {
+          event.preventDefault();
+
+          if (!session || session.role !== "Professor") {
+            setPublishError("Apenas professores podem publicar.");
+            return;
+          }
+
+          if (!announcementForm.title.trim() || !announcementForm.description.trim() || !announcementForm.expiresAt) {
+            return;
+          }
+
+          try {
+            const { error } = await supabaseClient
+              .from("announcements")
+              .insert({
+                title: announcementForm.title.trim(),
+                description: announcementForm.description.trim(),
+                school: announcementForm.school,
+                category: announcementForm.category,
+                expires_at: announcementForm.expiresAt,
+                author_id: session.id,
+              });
+
+            if (error) throw error;
+
+            setAnnouncementForm({
+              title: "",
+              description: "",
+              school: announcementForm.school,
+              category: announcementForm.category,
+              expiresAt: "",
+            });
+            setPublishError("");
+          } catch (err) {
+            setPublishError(err.message || "Erro ao publicar aviso.");
+          }
+        };
+
+        useEffect(() => {
+          const filtered = announcements
+            .filter((announcement) => {
+              const matchesSearch =
+                announcement.title.toLowerCase().includes(search.toLowerCase()) ||
+                announcement.description.toLowerCase().includes(search.toLowerCase());
+              const matchesSchool =
+                selectedSchool === "Todas" || announcement.school === selectedSchool;
+              const matchesCategory =
+                selectedCategory === "Todas" || announcement.category === selectedCategory;
+              return matchesSearch && matchesSchool && matchesCategory;
+            })
+            .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+          setVisibleAnnouncements(filtered);
+        }, [search, selectedSchool, selectedCategory, announcements]);
+
+        const counts = useMemo(() => {
+          const bySchool = announcements.reduce((acc, item) => {
+            acc[item.school] = (acc[item.school] || 0) + 1;
+            return acc;
+          }, {});
+
+          return {
+            total: announcements.length,
+            bySchool,
+          };
+        }, [announcements]);
+
+        if (!authReady || authLoading) {
+          return (
+            <div className={isDark ? "min-h-screen bg-[#0f141c] text-slate-100" : "min-h-screen bg-[linear-gradient(180deg,#eef2f7_0%,#f7f9fc_45%,#eff3f8_100%)] text-ink-950"}>
+              <div className="mx-auto flex min-h-screen max-w-6xl items-center justify-center px-4 py-8 lg:px-8">
+                <div className="panel w-full max-w-md p-6 text-center shadow-glow">
+                <div className="mx-auto flex h-24 w-24 items-center justify-center overflow-hidden rounded-full bg-ink-900 ring-4 ring-slate-100 dark:ring-slate-800">
+  <img 
+    src="/logo.png" 
+    alt="Logo do Portal" 
+    className="h-full w-full object-cover" 
+  />
+</div>
+                  <h1 className="display-title mt-4 text-3xl font-semibold text-ink-950">A carregar sessão</h1>
+                  <p className="mt-2 text-sm text-ink-600">A sincronizar autenticação e perfil com Supabase.</p>
+                </div>
+              </div>
+            </div>
+          );
+        }
+
+        if (!currentAccount) {
+          return (
+            <div className={isDark ? "min-h-screen bg-[#0f141c] text-slate-100" : "min-h-screen bg-[linear-gradient(180deg,#eef2f7_0%,#f7f9fc_45%,#eff3f8_100%)] text-ink-950"}>
+              <div className="mx-auto flex max-w-6xl justify-end px-4 pt-4 lg:px-8">
+                <button
+                  type="button"
+                  onClick={toggleTheme}
+                  className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-ink-700 transition hover:bg-slate-50"
+                >
+                  {isDark ? "Modo claro" : "Modo escuro"}
+                </button>
+              </div>
+              <div className="mx-auto flex min-h-screen max-w-6xl items-center px-4 py-8 lg:px-8">
+                <div className="grid w-full gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+                  <section className="panel p-8 shadow-glow lg:p-10">
+                   <div className="mx-auto flex h-24 w-24 items-center justify-center overflow-hidden rounded-full bg-slate-800 ring-4 ring-slate-700 shadow-glow">
+  <img 
+    src="/logo.png" 
+    alt="Logo do Portal" 
+    className="h-full w-full object-contain p-3" 
+  />
+                    </div>
+                    <h1 className="display-title mt-5 max-w-2xl text-4xl font-semibold text-ink-950 md:text-[3.2rem] md:leading-[1.05]">
+UNIIP                    </h1>
+                    <p className="mt-4 max-w-2xl text-base leading-7 text-ink-700 md:text-lg">
+                      Aceda com o seu perfil para publicar ou consultar informação académica num ambiente claro, consistente e profissional.
+                    </p>
+
+                    <div className="mt-8 grid gap-3 md:grid-cols-2">
+                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                        <div className="text-sm text-slate-500">Conta de teste do professor</div>
+                        <div className="mt-2 font-semibold text-ink-950">professor@uniip.pt</div>
+                        <div className="text-sm text-ink-600">Username: professor</div>
+                        <div className="text-sm text-ink-600">Password: prof123</div>
+                      </div>
+                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                        <div className="text-sm text-slate-500">Conta de teste do aluno</div>
+                        <div className="mt-2 font-semibold text-ink-950">aluno@uniip.pt</div>
+                        <div className="text-sm text-ink-600">Username: armindo</div>
+                        <div className="text-sm text-ink-600">Password: aluno123</div>
+                      </div>
+                    </div>
+
+                    <div className="mt-8 grid gap-4 sm:grid-cols-3">
+                      <div className="rounded-lg border border-slate-200 bg-white p-4">
+                        <div className="text-sm text-slate-500">Fluxo</div>
+                        <div className="mt-1 font-semibold text-ink-950">Login simples</div>
+                      </div>
+                      <div className="rounded-lg border border-slate-200 bg-white p-4">
+                        <div className="text-sm text-slate-500">Permissões</div>
+                        <div className="mt-1 font-semibold text-ink-950">Professor / Aluno</div>
+                      </div>
+                      <div className="rounded-lg border border-slate-200 bg-white p-4">
+                        <div className="text-sm text-slate-500">Sessão</div>
+                        <div className="mt-1 font-semibold text-ink-950">Persistida no browser</div>
+                      </div>
+                    </div>
+                  </section>
+
+                  <section className="panel p-6 shadow-glow lg:p-8">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h2 className="text-2xl font-semibold text-ink-950">Autenticação</h2>
+                        <p className="mt-1 text-sm text-ink-600">Selecione o perfil e introduza os dados de acesso.</p>
+                      </div>
+                      <BellRing className="h-5 w-5 text-slate-500" />
+                    </div>
+
+                    <div className="mt-6 grid grid-cols-2 gap-2 rounded-lg border border-slate-200 bg-slate-50 p-1">
+                      {[
+                        { key: "aluno", label: "Aluno" },
+                        { key: "professor", label: "Professor" },
+                      ].map((option) => (
+                        <button
+                          key={option.key}
+                          onClick={() => setLoginRole(option.key)}
+                          className={
+                            "rounded-md px-4 py-3 text-sm font-semibold transition " +
+                            (loginRole === option.key
+                              ? "bg-white text-ink-950 ring-1 ring-slate-200"
+                              : "text-slate-500 hover:text-ink-700")
+                          }
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    <form className="mt-6 space-y-4" onSubmit={handleLogin}>
+                      <label className="block space-y-2">
+                        <span className="text-sm font-medium text-ink-700">Email ou username</span>
+                        <input
+                          value={loginIdentifier}
+                          onChange={(event) => setLoginIdentifier(event.target.value)}
+                          className="w-full rounded-md border border-slate-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-ink-700 focus:bg-white"
+                          placeholder="professor ou email@uniip.pt"
+                        />
+                      </label>
+
+                      <label className="block space-y-2">
+                        <span className="text-sm font-medium text-ink-700">Password</span>
+                        <input
+                          type="password"
+                          value={loginPassword}
+                          onChange={(event) => setLoginPassword(event.target.value)}
+                          className="w-full rounded-md border border-slate-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-ink-700 focus:bg-white"
+                          placeholder="A sua password"
+                        />
+                      </label>
+
+                      {loginError ? (
+                        <div className="rounded-md border border-coral-100 bg-coral-50 px-4 py-3 text-sm text-coral-500">
+                          {loginError}
+                        </div>
+                      ) : null}
+
+                      {authInfo ? (
+                        <div className="rounded-md border border-accent-100 bg-accent-50 px-4 py-3 text-sm text-accent-600">
+                          {authInfo}
+                        </div>
+                      ) : null}
+
+                      <button
+                        type="submit"
+                        className="flex w-full items-center justify-center gap-2 rounded-md bg-ink-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-ink-800"
+                      >
+                        Entrar no portal
+                      </button>
+                    </form>
+                  </section>
+                </div>
+              </div>
+            </div>
+          );
+        }
+
+        return (
+          <div className={isDark ? "min-h-screen bg-[#0f141c] text-slate-100" : "min-h-screen bg-[#f2f4f7] text-ink-950"}>
+            <div className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
+              <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-3 lg:px-8">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-md bg-ink-900 text-white">
+                    <img 
+    src="/logo.png" 
+    alt="Logo do Portal" 
+    className="h-full w-full object-cover" 
+  />
+                  </div>
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">UNIIP</div>
+                    <div className="text-sm font-semibold text-ink-950">Portal de Avisos Académicos</div>
+                  </div>
+                </div>
+
+                <div className="hidden flex-1 md:block">
+                  <label className="flex items-center gap-3 rounded-lg border border-slate-300 bg-white px-4 py-2.5">
+                    <Search className="h-4 w-4 text-slate-500" />
+                    <input
+                      value={search}
+                      onChange={(event) => setSearch(event.target.value)}
+                      placeholder="Pesquisar avisos..."
+                      className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400"
+                    />
+                  </label>
+                </div>
+
+                <div className="ml-auto flex items-center gap-3 text-sm text-slate-600">
+                  <span className="hidden sm:inline">
+                    {currentAccount.role} · {currentAccount.name}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={toggleTheme}
+                    className="rounded-md border border-slate-300 px-4 py-2 font-semibold text-ink-700 transition hover:bg-slate-50"
+                  >
+                    {isDark ? "Modo claro" : "Modo escuro"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="rounded-md border border-slate-300 px-4 py-2 font-semibold text-ink-700 transition hover:bg-slate-50"
+                  >
+                    Sair
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div className="mx-auto max-w-7xl px-4 py-6 lg:px-8">
+              <div className="grid gap-8 lg:grid-cols-[220px_minmax(0,1fr)]">
+                <aside className="space-y-4 lg:sticky lg:top-20 lg:self-start">
+                  <div className="panel p-4">
+                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Navegação</div>
+                    <div className="mt-3 space-y-2 text-sm">
+                      {[
+                        { id: "feed", label: "Feed" },
+                        ...(currentAccount.role === "Professor" ? [{ id: "professor", label: "Publicar" }] : []),
+                        { id: "account", label: "Conta" },
+                      ].map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => (item.id === "account" ? navigateToAccountPage() : navigateToSection(item.id))}
+                          className={
+                            "block w-full rounded-md px-3 py-2 text-left font-semibold transition " +
+                            ((item.id === "account" ? currentView === "account" : activeSection === item.id && currentView === "dashboard")
+                              ? "bg-slate-100 text-ink-950"
+                              : "text-slate-600 hover:bg-slate-100 hover:text-ink-950")
+                          }
+                        >
+                          {item.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="panel scroll-mt-24 space-y-3 p-4" id="filtros">
+                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Escola</div>
+                 <div className="flex flex-wrap gap-2">
+  {["Todas", ...Object.keys(schoolConfig)].map((school) => (
+    <button
+      key={school}
+      onClick={() => setSelectedSchool(school)}
+      className={
+        'inline-flex items-center gap-2 rounded-md border px-3 py-2 text-xs font-semibold transition ' +
+        (selectedSchool === school
+          ? 'border-accent-600 bg-accent-600 text-white' // <-- NOVA LINHA COM O VERDE
+          : 'border-slate-200 bg-white text-ink-700 hover:border-accent-200 hover:bg-accent-50/50')
+      }
+    >
+      {school}
+    </button>
+  ))}
+</div>
+
+                    <div className="pt-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Categoria</div>
+                    <div className="flex flex-wrap gap-2">
+                      {["Todas", ...Object.keys(categoryConfig)].map((category) => (
+                        <button
+                          key={category}
+                          onClick={() => setSelectedCategory(category)}
+                          className={
+                            'inline-flex items-center gap-2 rounded-md border px-3 py-2 text-xs font-semibold transition ' +
+                            (selectedCategory === category
+                              ? 'border-accent-600 bg-accent-600 text-white'
+                              : 'border-slate-200 bg-white text-ink-700 hover:border-accent-200 hover:bg-accent-50/50')
+                          }
+                        >
+                          {category}
+                        </button>
+                      ))}
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        setSearch('');
+                        setSelectedSchool('Todas');
+                        setSelectedCategory('Todas');
+                      }}
+                      className="inline-flex items-center gap-2 rounded-md px-2 py-2 text-sm font-semibold text-ink-700 transition hover:bg-slate-100"
+                    >
+                      <X className="h-4 w-4" />
+                      Limpar filtros
+                    </button>
+                  </div>
+
+                 
+                </aside>
+
+                <main className="space-y-4">
+                  {currentView === "account" ? (
+                    <section className="panel space-y-4 p-5">
+                      <div className="flex items-end justify-between gap-4">
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Conta</p>
+                          <h2 className="text-xl font-semibold text-ink-950">Perfil do utilizador</h2>
+                          <p className="text-sm text-ink-600">Esta secção está numa página separada do feed principal.</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => navigateToSection("feed")}
+                          className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-ink-700 transition hover:bg-slate-50"
+                        >
+                          Voltar ao feed
+                        </button>
+                      </div>
+
+                      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                        <div className="rounded-lg border border-slate-200 bg-white p-4">
+                          <div className="text-sm text-slate-500">Nome</div>
+                          <div className="mt-1 text-base font-semibold text-ink-950">{currentAccount.name}</div>
+                        </div>
+                        <div className="rounded-lg border border-slate-200 bg-white p-4">
+                          <div className="text-sm text-slate-500">Perfil</div>
+                          <div className="mt-1 text-base font-semibold text-ink-950">{currentAccount.role}</div>
+                        </div>
+                        <div className="rounded-lg border border-slate-200 bg-white p-4">
+                          <div className="text-sm text-slate-500">Email</div>
+                          <div className="mt-1 text-base font-semibold text-ink-950 break-all">{currentAccount.email}</div>
+                        </div>
+                        <div className="rounded-lg border border-slate-200 bg-white p-4">
+                          <div className="text-sm text-slate-500">Username</div>
+                          <div className="mt-1 text-base font-semibold text-ink-950">{currentAccount.username || splitLoginIdentifier(currentAccount.email || "")}</div>
+                        </div>
+                        <div className="rounded-lg border border-slate-200 bg-white p-4">
+                          <div className="text-sm text-slate-500">Total de avisos</div>
+                          <div className="mt-1 text-base font-semibold text-ink-950">{counts.total}</div>
+                        </div>
+                      </div>
+                    </section>
+                  ) : (
+                    <>
+                      {currentAccount.role === "Professor" ? (
+                        <section className="panel scroll-mt-24 space-y-4 p-5" id="professor">
+                          <div className="flex items-end justify-between gap-4">
+                            <div>
+                              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Publicação</p>
+                              <h2 className="text-xl font-semibold text-ink-950">Área do professor</h2>
+                              <p className="text-sm text-ink-600">Crie um aviso novo sem sair do feed.</p>
+                            </div>
+                            <div className="hidden text-sm font-semibold text-ink-700 md:block">Modo de edição ativo</div>
+                          </div>
+
+                          <form className="grid gap-4 lg:grid-cols-[1.4fr_1fr]" onSubmit={handleCreateAnnouncement}>
+                            <div className="space-y-4">
+                              <label className="block space-y-2">
+                                <span className="text-sm font-medium text-ink-700">Título</span>
+                                <input
+                                  value={announcementForm.title}
+                                  onChange={(event) =>
+                                    setAnnouncementForm((current) => ({ ...current, title: event.target.value }))
+                                  }
+                                  className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition placeholder:text-slate-400 focus:border-ink-900"
+                                  placeholder="Ex.: Reunião extraordinária"
+                                />
+                              </label>
+
+                              <label className="block space-y-2">
+                                <span className="text-sm font-medium text-ink-700">Descrição</span>
+                                <textarea
+                                  value={announcementForm.description}
+                                  onChange={(event) =>
+                                    setAnnouncementForm((current) => ({ ...current, description: event.target.value }))
+                                  }
+                                  rows="5"
+                                  className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition placeholder:text-slate-400 focus:border-ink-900"
+                                  placeholder="Escreva o aviso com contexto e instruções claras..."
+                                />
+                              </label>
+                            </div>
+
+                            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1 lg:content-start">
+                              <label className="block space-y-2">
+                                <span className="text-sm font-medium text-ink-700">Escola</span>
+                                <select
+                                  value={announcementForm.school}
+                                  onChange={(event) =>
+                                    setAnnouncementForm((current) => ({ ...current, school: event.target.value }))
+                                  }
+                                  className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-ink-900"
+                                >
+                                  {Object.keys(schoolConfig).map((school) => (
+                                    <option key={school} value={school}>
+                                      {school} - {schoolConfig[school].name}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+
+                              <label className="block space-y-2">
+                                <span className="text-sm font-medium text-ink-700">Categoria</span>
+                                <select
+                                  value={announcementForm.category}
+                                  onChange={(event) =>
+                                    setAnnouncementForm((current) => ({ ...current, category: event.target.value }))
+                                  }
+                                  className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-ink-900"
+                                >
+                                  {Object.keys(categoryConfig).map((category) => (
+                                    <option key={category} value={category}>
+                                      {category}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+
+                              <label className="block space-y-2">
+                                <span className="text-sm font-medium text-ink-700">Data de expiração</span>
+                                <input
+                                  type="date"
+                                  value={announcementForm.expiresAt}
+                                  onChange={(event) =>
+                                    setAnnouncementForm((current) => ({ ...current, expiresAt: event.target.value }))
+                                  }
+                                  className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-ink-900"
+                                />
+                              </label>
+
+                              <div className="flex items-end">
+                                <button
+                                  type="submit"
+                                  className="inline-flex w-full items-center justify-center rounded-md bg-ink-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-ink-800"
+                                >
+                                  Publicar aviso
+                                </button>
+                              </div>
+                            </div>
+                          </form>
+                        </section>
+                      ) : null}
+
+                      <div className="scroll-mt-24 flex items-center justify-between border-b border-slate-200 pb-3" id="feed">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Lista editorial</p>
+                      <h2 className="text-xl font-semibold text-ink-950">Avisos em destaque</h2>
+                    </div>
+                    <div className="flex flex-wrap gap-2 text-sm text-slate-600">
+                      <span className="inline-flex items-center gap-2">
+                        <CalendarDays className="h-4 w-4" />
+                        Mais recentes primeiro
+                      </span>
+                      <span className="inline-flex items-center gap-2">
+                        <BellRing className="h-4 w-4" />
+                        Leitura rápida
+                      </span>
+                    </div>
+                  </div>
+
+                  {visibleAnnouncements.length === 0 ? (
+                    <div className="panel border-dashed p-10 text-center">
+                      <h3 className="text-xl font-semibold text-ink-950">Sem resultados com estes filtros</h3>
+                      <p className="mt-2 text-ink-600">
+                        Tente limpar a pesquisa ou alterar a Escola/Categoria para encontrar avisos.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="panel overflow-hidden divide-y divide-slate-200">
+                      {visibleAnnouncements.map((announcement) => {
+                        const school = schoolConfig[announcement.school];
+                        const category = categoryConfig[announcement.category];
+                        const schoolName = school.name;
+                        const expired = isExpired(announcement.expires_at);
+
+                        const schoolIcon =
+                          announcement.school === 'ESE' ? BookOpen :
+                          announcement.school === 'EST' ? GraduationCap :
+                          announcement.school === 'ESS' ? HeartHandshake : Globe2;
+
+                        const categoryIcon =
+                          announcement.category === 'Evento' ? CalendarDays :
+                          announcement.category === 'Voluntariado' ? Users : Megaphone;
+
+                        return (
+                          <article
+                            key={announcement.id}
+                            className="group flex flex-col gap-4 px-4 py-5 transition duration-300 hover:bg-slate-50/50 md:flex-row md:items-start md:gap-5"
+                          >
+                            <div className={`h-1.5 w-20 shrink-0 rounded-full md:h-auto md:w-1 md:self-stretch ${school.badge}`} />
+
+                            <div className="min-w-0 flex-1 space-y-3">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <div className={`inline-flex items-center gap-2 rounded-md border px-3 py-1 text-xs font-semibold ${school.classes}`}>
+                                  {React.createElement(schoolIcon, { className: 'h-3.5 w-3.5' })}
+                                  {school.label}
+                                </div>
+                                <span className="inline-flex items-center rounded-md border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
+                                  {announcement.category}
+                                </span>
+                                {expired ? (
+                                  <span className="inline-flex items-center rounded-md border border-coral-100 bg-coral-50 px-3 py-1 text-xs font-semibold text-coral-500">
+                                    Expirado
+                                  </span>
+                                ) : null}
+                              </div>
+
+                              <h3 className="text-xl font-semibold leading-8 text-ink-950">{announcement.title}</h3>
+
+                              <p className="max-w-3xl text-sm leading-6 text-ink-600">
+                                {announcement.description}
+                              </p>
+
+                          <div className="flex flex-wrap items-center gap-3 text-sm text-slate-500">
+  <span className="inline-flex items-center gap-2">
+    {React.createElement(categoryIcon, { className: 'h-4 w-4' })}
+    {schoolName}
+  </span>
+  <span>Publicado em {formatDate(announcement.created_at)}</span>
+  <span>•</span>
+  <span>{expired ? 'Expirado' : `Expira em ${formatDate(announcement.expires_at)}`}</span>
+</div>
+                            </div>
+                          </article>
+                        );
+                      })}
+                    </div>
+                  )}
+                    </>
+                  )}
+                </main>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      function splitLoginIdentifier(value) {
+        return String(value || "").split("@")[0];
+      }
+
+      ReactDOM.createRoot(document.getElementById('root')).render(<Dashboard />);
+    </script>
+  </head>
+  <body class="bg-slate-100 antialiased">
+    <div id="root"></div>
+  </body>
+</html>
