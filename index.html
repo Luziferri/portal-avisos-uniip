@@ -1382,8 +1382,15 @@
               </div>
             </div>
             <div className="mx-auto max-w-7xl px-4 py-6 lg:px-8">
-              <div className="grid gap-8 lg:grid-cols-[220px_minmax(0,1fr)]">
-                <aside className="space-y-4 lg:sticky lg:top-20 lg:self-start">
+              <div
+                className={
+                  currentView === "account"
+                    ? "grid gap-8"
+                    : "grid gap-8 lg:grid-cols-[220px_minmax(0,1fr)]"
+                }
+              >
+                {currentView !== "account" ? (
+                  <aside className="space-y-4 lg:sticky lg:top-20 lg:self-start">
                   {/* BLOCO 1: NAVEGAÇÃO (Sempre visível) */}
                   <div className="panel p-4">
                     <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
@@ -1489,7 +1496,8 @@
                       </button>
                     </div>
                   )}
-                </aside>
+                  </aside>
+                ) : null}
 
                 <main className="space-y-4">
                   {currentView === "account" ? (
@@ -1549,6 +1557,24 @@
                             </p>
                             <p className="truncate text-base font-semibold text-ink-950">
                               {currentAccount?.role || session?.role || "Aluno"}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Cartão: Escola */}
+                        <div className="flex items-center gap-4 rounded-xl border border-slate-200 bg-slate-50/50 p-4 shadow-sm transition-colors hover:bg-slate-50">
+                          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-cyan-100 text-cyan-600">
+                            <Globe2 className="h-6 w-6" />
+                          </div>
+                          <div className="overflow-hidden">
+                            <p className="text-xs font-medium text-slate-500">
+                              Escola
+                            </p>
+                            <p className="truncate text-base font-semibold text-ink-950">
+                              {currentAccount?.school || session?.school || "Sem escola"}
+                            </p>
+                            <p className="truncate text-xs text-slate-500">
+                              {schoolConfig[currentAccount?.school || session?.school]?.name || "Escola não definida"}
                             </p>
                           </div>
                         </div>
