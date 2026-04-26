@@ -460,7 +460,7 @@
 
             const profileRequest = supabaseClient
               .from("profiles")
-              .select("id, full_name, username, role, school")
+              .select("id, full_name, username, role, school, avatar_url")
               .eq("id", user.id)
               .single();
 
@@ -564,6 +564,7 @@
                     nextProfile?.username ||
                     splitLoginIdentifier(nextUser.email),
                   school: nextProfile?.school || "ESE",
+                  avatar_url: nextProfile?.avatar_url || "",
                 });
               } catch (profileError) {
                 if (!active) {
@@ -582,6 +583,7 @@
                   name: nextUser.email,
                   username: splitLoginIdentifier(nextUser.email),
                   school: "ESE",
+                  avatar_url: "",
                 });
                 setProfile(null);
                 setLoginError(""); // Don't show error, silently use fallback
@@ -636,6 +638,7 @@
                       nextProfile?.username ||
                       splitLoginIdentifier(nextSession.user.email),
                     school: nextProfile?.school || "ESE",
+                    avatar_url: nextProfile?.avatar_url || "",
                   });
                 } catch (profileError) {
                   if (!active) {
@@ -654,6 +657,7 @@
                     name: nextSession.user.email,
                     username: splitLoginIdentifier(nextSession.user.email),
                     school: "ESE",
+                    avatar_url: "",
                   });
                   setProfile(null);
                 }
@@ -749,22 +753,9 @@
         }, [currentAccount?.role, currentAccount?.school]);
 
         useEffect(() => {
-          const userId = currentAccount?.id;
-
-          if (!userId) {
-            setProfilePhoto("");
-            setProfilePhotoError("");
-            return;
-          }
-
-          try {
-            const storedPhoto = localStorage.getItem(`uniip-avatar-${userId}`);
-            setProfilePhoto(storedPhoto || "");
-            setProfilePhotoError("");
-          } catch {
-            setProfilePhoto("");
-          }
-        }, [currentAccount?.id]);
+          setProfilePhoto(currentAccount?.avatar_url || "");
+          setProfilePhotoError("");
+        }, [currentAccount?.id, currentAccount?.avatar_url]);
 
         useEffect(() => {
           if (!currentAccount) {
@@ -961,7 +952,7 @@
           setThemeMode((current) => (current === "dark" ? "light" : "dark"));
         };
 
-        const handleProfilePhotoChange = (event) => {
+        const handleProfilePhotoChange = async (event) => {
           const file = event.target.files?.[0];
 
           if (!file) {
@@ -988,50 +979,107 @@
             return;
           }
 
-          const reader = new FileReader();
+          if (!supabaseClient) {
+            setProfilePhotoError("Supabase não está configurado.");
+            event.target.value = "";
+            return;
+          }
 
-          reader.onload = () => {
-            const result = typeof reader.result === "string" ? reader.result : "";
+          const avatarPath = `${userId}/avatar`;
 
-            if (!result) {
-              setProfilePhotoError("Não foi possível processar a imagem.");
-              return;
+          try {
+            const { error: uploadError } = await supabaseClient.storage
+              .from("avatars")
+              .upload(avatarPath, file, {
+                upsert: true,
+                cacheControl: "3600",
+                contentType: file.type,
+              });
+
+            if (uploadError) {
+              throw uploadError;
             }
 
-            try {
-              localStorage.setItem(`uniip-avatar-${userId}`, result);
-              setProfilePhoto(result);
-              setProfilePhotoError("");
-            } catch {
-              setProfilePhotoError(
-                "Sem espaço para guardar a imagem no browser. Usa uma imagem menor.",
-              );
+            const { data: publicData } = supabaseClient.storage
+              .from("avatars")
+              .getPublicUrl(avatarPath);
+
+            const publicUrl = publicData?.publicUrl
+              ? `${publicData.publicUrl}?t=${Date.now()}`
+              : "";
+
+            if (!publicUrl) {
+              throw new Error("Não foi possível obter o URL da imagem.");
             }
-          };
 
-          reader.onerror = () => {
-            setProfilePhotoError("Erro ao ler a imagem selecionada.");
-          };
+            const { error: profileError } = await supabaseClient
+              .from("profiles")
+              .update({ avatar_url: publicUrl })
+              .eq("id", userId);
 
-          reader.readAsDataURL(file);
-          event.target.value = "";
+            if (profileError) {
+              throw profileError;
+            }
+
+            setProfilePhoto(publicUrl);
+            setProfilePhotoError("");
+            setProfile((current) =>
+              current ? { ...current, avatar_url: publicUrl } : current,
+            );
+            setSession((current) =>
+              current && current.id === userId
+                ? { ...current, avatar_url: publicUrl }
+                : current,
+            );
+          } catch (error) {
+            setProfilePhotoError(
+              error.message || "Não foi possível atualizar a foto de perfil.",
+            );
+          } finally {
+            event.target.value = "";
+          }
         };
 
         const handleRemoveProfilePhoto = () => {
           const userId = currentAccount?.id;
 
-          if (!userId) {
+          if (!userId || !supabaseClient) {
             return;
           }
 
-          try {
-            localStorage.removeItem(`uniip-avatar-${userId}`);
-          } catch {
-            // Ignore storage errors.
-          }
+          const avatarPath = `${userId}/avatar`;
 
-          setProfilePhoto("");
-          setProfilePhotoError("");
+          const clearAvatar = async () => {
+            try {
+              await supabaseClient.storage.from("avatars").remove([avatarPath]);
+
+              const { error: profileError } = await supabaseClient
+                .from("profiles")
+                .update({ avatar_url: null })
+                .eq("id", userId);
+
+              if (profileError) {
+                throw profileError;
+              }
+
+              setProfilePhoto("");
+              setProfilePhotoError("");
+              setProfile((current) =>
+                current ? { ...current, avatar_url: "" } : current,
+              );
+              setSession((current) =>
+                current && current.id === userId
+                  ? { ...current, avatar_url: "" }
+                  : current,
+              );
+            } catch (error) {
+              setProfilePhotoError(
+                error.message || "Não foi possível remover a foto de perfil.",
+              );
+            }
+          };
+
+          clearAvatar();
         };
 
         const handleCreateAnnouncement = async (event) => {
@@ -1622,8 +1670,11 @@
 
                       <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 sm:p-5">
                         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Foto de perfil
+                          Settings
                         </p>
+                        <h3 className="mt-1 text-lg font-semibold text-ink-950">
+                          Mudar foto de perfil
+                        </h3>
                         <div className="mt-3 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                           <div className="flex items-center gap-4">
                             <div className="h-20 w-20 overflow-hidden rounded-full border border-slate-200 bg-white">
@@ -1678,8 +1729,18 @@
                       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                         {/* Cartão: Nome */}
                         <div className="flex items-center gap-4 rounded-xl border border-slate-200 bg-slate-50/50 p-4 shadow-sm transition-colors hover:bg-slate-50">
-                          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-600">
-                            <User className="h-6 w-6" />
+                          <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-white text-blue-600">
+                            {profilePhoto ? (
+                              <img
+                                src={profilePhoto}
+                                alt="Avatar do utilizador"
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <div className="flex h-full w-full items-center justify-center bg-blue-100 text-blue-600">
+                                <User className="h-6 w-6" />
+                              </div>
+                            )}
                           </div>
                           <div className="overflow-hidden">
                             <p className="text-xs font-medium text-slate-500">

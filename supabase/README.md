@@ -15,6 +15,7 @@ No SQL Editor do Supabase, executar nesta ordem:
 3. `03_seed_announcements.sql` (opcional, apenas dados de exemplo)
 4. `04_username_login.sql` se a base já tinha o schema antigo e queres acrescentar login por username
 5. `05_secretaria_user_management.sql` para permitir que a Secretaria liste/crie/remova utilizadores
+6. `06_profile_avatar.sql` para adicionar foto de perfil com Supabase Storage
 
 Se aplicares fora de ordem, podes ter erros de tipos/tabelas/policies inexistentes.
 
@@ -65,6 +66,7 @@ Sugestão prática:
 - `03_seed_announcements.sql`: avisos de exemplo.
 - `seed-users.mjs`: seed idempotente de utilizadores no Auth.
 - `05_secretaria_user_management.sql`: funções RPC para gestão de utilizadores pela Secretaria.
+- `06_profile_avatar.sql`: coluna `avatar_url` e políticas do bucket `avatars`.
 
 ## 5) Próximo passo no frontend
 Integrar Supabase no `index.html` e substituir:

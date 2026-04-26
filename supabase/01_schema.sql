@@ -43,12 +43,16 @@ create table if not exists public.profiles (
   username text not null,
   role public.user_role not null,
   school public.school_code not null,
+  avatar_url text,
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now())
 );
 
 alter table public.profiles
   add column if not exists username text;
+
+alter table public.profiles
+  add column if not exists avatar_url text;
 
 update public.profiles p
 set username = lower(split_part(u.email, '@', 1))
