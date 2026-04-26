@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="pt">
   <head>
     <meta charset="UTF-8" />
@@ -134,9 +134,10 @@
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     <script type="text/babel" data-presets="react">
       const { useEffect, useMemo, useRef, useState } = React;
-        
+
       const SUPABASE_URL = "https://bgerpvpmngunuqvllnmy.supabase.co";
-      const SUPABASE_ANON_KEY = "sb_publishable_Q-s7cUs4is8Kp9v4sYxc3g_QdOfW8LI";
+      const SUPABASE_ANON_KEY =
+        "sb_publishable_Q-s7cUs4is8Kp9v4sYxc3g_QdOfW8LI";
       const supabaseClient =
         SUPABASE_URL &&
         SUPABASE_ANON_KEY &&
@@ -268,6 +269,42 @@
           <path d="M3 10h18" />
         </Icon>
       );
+      const User = (props) => (
+        <Icon {...props}>
+          <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+          <circle cx="12" cy="7" r="4" />
+        </Icon>
+      );
+
+      const Mail = (props) => (
+        <Icon {...props}>
+          <rect width="20" height="16" x="2" y="4" rx="2" />
+          <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+        </Icon>
+      );
+
+      const Shield = (props) => (
+        <Icon {...props}>
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10" />
+        </Icon>
+      );
+
+      const AtSign = (props) => (
+        <Icon {...props}>
+          <circle cx="12" cy="12" r="4" />
+          <path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-3.92 7.94" />
+        </Icon>
+      );
+
+      const FileText = (props) => (
+        <Icon {...props}>
+          <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+          <polyline points="14 2 14 8 20 8" />
+          <line x1="16" x2="8" y1="13" y2="13" />
+          <line x1="16" x2="8" y1="17" y2="17" />
+          <line x1="10" x2="8" y1="9" y2="9" />
+        </Icon>
+      );
 
       const BookOpen = (props) => (
         <Icon {...props}>
@@ -341,8 +378,12 @@
         });
         const [publishError, setPublishError] = useState("");
         const [loginRole, setLoginRole] = useState("aluno");
-        const [loginIdentifier, setLoginIdentifier] = useState(mockAccounts.aluno.username);
-        const [loginPassword, setLoginPassword] = useState(mockAccounts.aluno.password);
+        const [loginIdentifier, setLoginIdentifier] = useState(
+          mockAccounts.aluno.username,
+        );
+        const [loginPassword, setLoginPassword] = useState(
+          mockAccounts.aluno.password,
+        );
         const [loginError, setLoginError] = useState("");
         const [authInfo, setAuthInfo] = useState("");
         const [announcementForm, setAnnouncementForm] = useState({
@@ -370,7 +411,9 @@
           try {
             const query = supabaseClient
               .from("announcements")
-              .select("id, title, description, school, category, created_at, expires_at")
+              .select(
+                "id, title, description, school, category, created_at, expires_at",
+              )
               .order("created_at", { ascending: false });
 
             const { data } = await query;
@@ -381,14 +424,14 @@
           }
         };
 
-   const loadProfile = async (user) => {
+        const loadProfile = async (user) => {
           if (!supabaseClient || !user) return null;
 
           try {
             const PROFILE_TIMEOUT = 4500;
             const timeoutMarker = Symbol("profile-timeout");
             const timeoutPromise = new Promise((resolve) =>
-              setTimeout(() => resolve(timeoutMarker), PROFILE_TIMEOUT)
+              setTimeout(() => resolve(timeoutMarker), PROFILE_TIMEOUT),
             );
 
             const profileRequest = supabaseClient
@@ -428,90 +471,24 @@
           let active = true;
 
           const bootstrap = async () => {
-          try {
-            const { data, error } = await supabaseClient.auth.getSession();
-
-            if (!active) {
-              return;
-            }
-
-            if (error) {
-              console.error("getSession error:", error.message);
-              setLoginError(error.message);
-              setAuthReady(true);
-              setAuthLoading(false);
-              return;
-            }
-
-            const nextUser = data.session?.user || null;
-
-            if (!nextUser) {
-              setSession(null);
-              setProfile(null);
-              setAuthReady(true);
-              setAuthLoading(false);
-              return;
-            }
-
             try {
-              const nextProfile = await loadProfile(nextUser);
+              const { data, error } = await supabaseClient.auth.getSession();
+
               if (!active) {
                 return;
               }
 
-              setProfile(nextProfile);
-              setSession({
-                id: nextUser.id,
-                email: nextUser.email,
-                role: nextProfile?.role || "Aluno",
-                name: nextProfile?.full_name || nextUser.email,
-                username: nextProfile?.username || splitLoginIdentifier(nextUser.email),
-                school: nextProfile?.school || "ESE",
-              });
-            } catch (profileError) {
-              if (!active) {
-                return;
-              }
-
-              console.error("Bootstrap profile error:", profileError.message || profileError);
-              // Fallback: still allow login with basic info from auth
-              setSession({
-                id: nextUser.id,
-                email: nextUser.email,
-                role: "Aluno",
-                name: nextUser.email,
-                username: splitLoginIdentifier(nextUser.email),
-                school: "ESE",
-              });
-              setProfile(null);
-              setLoginError(""); // Don't show error, silently use fallback
-            } finally {
-              if (active) {
+              if (error) {
+                console.error("getSession error:", error.message);
+                setLoginError(error.message);
                 setAuthReady(true);
                 setAuthLoading(false);
+                return;
               }
-            }
-          } catch (err) {
-            console.error("Bootstrap error:", err);
-            if (active) {
-              setAuthReady(true);
-              setAuthLoading(false);
-              setLoginError("Erro ao carregar sessão.");
-            }
-          }
-        };
 
-          bootstrap();
+              const nextUser = data.session?.user || null;
 
-          const {
-            data: { subscription },
-          } = supabaseClient.auth.onAuthStateChange(async (_event, nextSession) => {
-            if (!active) {
-              return;
-            }
-
-            try {
-              if (!nextSession?.user) {
+              if (!nextUser) {
                 setSession(null);
                 setProfile(null);
                 setAuthReady(true);
@@ -520,18 +497,20 @@
               }
 
               try {
-                const nextProfile = await loadProfile(nextSession.user);
+                const nextProfile = await loadProfile(nextUser);
                 if (!active) {
                   return;
                 }
 
                 setProfile(nextProfile);
                 setSession({
-                  id: nextSession.user.id,
-                  email: nextSession.user.email,
+                  id: nextUser.id,
+                  email: nextUser.email,
                   role: nextProfile?.role || "Aluno",
-                  name: nextProfile?.full_name || nextSession.user.email,
-                  username: nextProfile?.username || splitLoginIdentifier(nextSession.user.email),
+                  name: nextProfile?.full_name || nextUser.email,
+                  username:
+                    nextProfile?.username ||
+                    splitLoginIdentifier(nextUser.email),
                   school: nextProfile?.school || "ESE",
                 });
               } catch (profileError) {
@@ -539,25 +518,101 @@
                   return;
                 }
 
-                console.error("Auth state profile error:", profileError.message || profileError);
-                // Fallback: allow login with basic info
+                console.error(
+                  "Bootstrap profile error:",
+                  profileError.message || profileError,
+                );
+                // Fallback: still allow login with basic info from auth
                 setSession({
-                  id: nextSession.user.id,
-                  email: nextSession.user.email,
+                  id: nextUser.id,
+                  email: nextUser.email,
                   role: "Aluno",
-                  name: nextSession.user.email,
-                  username: splitLoginIdentifier(nextSession.user.email),
+                  name: nextUser.email,
+                  username: splitLoginIdentifier(nextUser.email),
                   school: "ESE",
                 });
                 setProfile(null);
+                setLoginError(""); // Don't show error, silently use fallback
+              } finally {
+                if (active) {
+                  setAuthReady(true);
+                  setAuthLoading(false);
+                }
               }
-            } finally {
+            } catch (err) {
+              console.error("Bootstrap error:", err);
               if (active) {
                 setAuthReady(true);
                 setAuthLoading(false);
+                setLoginError("Erro ao carregar sessão.");
               }
             }
-          });
+          };
+
+          bootstrap();
+
+          const {
+            data: { subscription },
+          } = supabaseClient.auth.onAuthStateChange(
+            async (_event, nextSession) => {
+              if (!active) {
+                return;
+              }
+
+              try {
+                if (!nextSession?.user) {
+                  setSession(null);
+                  setProfile(null);
+                  setAuthReady(true);
+                  setAuthLoading(false);
+                  return;
+                }
+
+                try {
+                  const nextProfile = await loadProfile(nextSession.user);
+                  if (!active) {
+                    return;
+                  }
+
+                  setProfile(nextProfile);
+                  setSession({
+                    id: nextSession.user.id,
+                    email: nextSession.user.email,
+                    role: nextProfile?.role || "Aluno",
+                    name: nextProfile?.full_name || nextSession.user.email,
+                    username:
+                      nextProfile?.username ||
+                      splitLoginIdentifier(nextSession.user.email),
+                    school: nextProfile?.school || "ESE",
+                  });
+                } catch (profileError) {
+                  if (!active) {
+                    return;
+                  }
+
+                  console.error(
+                    "Auth state profile error:",
+                    profileError.message || profileError,
+                  );
+                  // Fallback: allow login with basic info
+                  setSession({
+                    id: nextSession.user.id,
+                    email: nextSession.user.email,
+                    role: "Aluno",
+                    name: nextSession.user.email,
+                    username: splitLoginIdentifier(nextSession.user.email),
+                    school: "ESE",
+                  });
+                  setProfile(null);
+                }
+              } finally {
+                if (active) {
+                  setAuthReady(true);
+                  setAuthLoading(false);
+                }
+              }
+            },
+          );
 
           return () => {
             active = false;
@@ -580,13 +635,13 @@
 
             // Sintaxe correta do Supabase V2
             const subscription = supabaseClient
-              .channel('mudancas-avisos')
+              .channel("mudancas-avisos")
               .on(
-                'postgres_changes', 
-                { event: '*', schema: 'public', table: 'announcements' }, 
+                "postgres_changes",
+                { event: "*", schema: "public", table: "announcements" },
                 (payload) => {
                   loadData();
-                }
+                },
               )
               .subscribe();
 
@@ -605,7 +660,9 @@
           }
 
           document.documentElement.classList.toggle("theme-dark", isDark);
-          document.documentElement.style.colorScheme = isDark ? "dark" : "light";
+          document.documentElement.style.colorScheme = isDark
+            ? "dark"
+            : "light";
         }, [themeMode, isDark]);
 
         useEffect(() => {
@@ -621,7 +678,10 @@
             return;
           }
 
-          const defaultSchool = currentAccount.role === "Professor" ? currentAccount.school || "ESCE" : currentAccount.school || "Todas";
+          const defaultSchool =
+            currentAccount.role === "Professor"
+              ? currentAccount.school || "ESCE"
+              : currentAccount.school || "Todas";
           setSelectedSchool(defaultSchool);
         }, [currentAccount?.role, currentAccount?.school]);
 
@@ -634,9 +694,10 @@
             return;
           }
 
-          const sectionIds = currentAccount.role === "Professor"
-            ? ["feed", "filtros", "professor"]
-            : ["feed", "filtros"];
+          const sectionIds =
+            currentAccount.role === "Professor"
+              ? ["feed", "filtros", "professor"]
+              : ["feed", "filtros"];
 
           const sections = sectionIds
             .map((id) => document.getElementById(id))
@@ -659,7 +720,7 @@
             {
               rootMargin: "-140px 0px -50% 0px",
               threshold: [0.25, 0.5, 0.75],
-            }
+            },
           );
 
           sections.forEach((section) => observer.observe(section));
@@ -698,7 +759,8 @@
           syncViewFromHash();
           window.addEventListener("hashchange", syncViewFromHash);
 
-          return () => window.removeEventListener("hashchange", syncViewFromHash);
+          return () =>
+            window.removeEventListener("hashchange", syncViewFromHash);
         }, [currentAccount?.role]);
 
         const navigateToSection = (sectionId) => {
@@ -760,9 +822,12 @@
             let emailToUse = identifier;
 
             if (!identifier.includes("@")) {
-              const { data, error } = await supabaseClient.rpc("resolve_login_email", {
-                login_identifier: identifier,
-              });
+              const { data, error } = await supabaseClient.rpc(
+                "resolve_login_email",
+                {
+                  login_identifier: identifier,
+                },
+              );
 
               if (error || !data) {
                 throw new Error("Credenciais inválidas.");
@@ -816,7 +881,11 @@
             return;
           }
 
-          if (!announcementForm.title.trim() || !announcementForm.description.trim() || !announcementForm.expiresAt) {
+          if (
+            !announcementForm.title.trim() ||
+            !announcementForm.description.trim() ||
+            !announcementForm.expiresAt
+          ) {
             return;
           }
 
@@ -851,12 +920,18 @@
           const filtered = announcements
             .filter((announcement) => {
               const matchesSearch =
-                announcement.title.toLowerCase().includes(search.toLowerCase()) ||
-                announcement.description.toLowerCase().includes(search.toLowerCase());
+                announcement.title
+                  .toLowerCase()
+                  .includes(search.toLowerCase()) ||
+                announcement.description
+                  .toLowerCase()
+                  .includes(search.toLowerCase());
               const matchesSchool =
-                selectedSchool === "Todas" || announcement.school === selectedSchool;
+                selectedSchool === "Todas" ||
+                announcement.school === selectedSchool;
               const matchesCategory =
-                selectedCategory === "Todas" || announcement.category === selectedCategory;
+                selectedCategory === "Todas" ||
+                announcement.category === selectedCategory;
               return matchesSearch && matchesSchool && matchesCategory;
             })
             .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
@@ -878,18 +953,34 @@
 
         if (!authReady || authLoading) {
           return (
-            <div className={isDark ? "min-h-screen bg-[#0f141c] text-slate-100" : "min-h-screen bg-[linear-gradient(180deg,#eef2f7_0%,#f7f9fc_45%,#eff3f8_100%)] text-ink-950"}>
+            <div
+              className={
+                isDark
+                  ? "min-h-screen bg-[#0f141c] text-slate-100"
+                  : "min-h-screen bg-[linear-gradient(180deg,#eef2f7_0%,#f7f9fc_45%,#eff3f8_100%)] text-ink-950"
+              }
+            >
               <div className="mx-auto flex min-h-screen max-w-6xl items-center justify-center px-4 py-8 lg:px-8">
                 <div className="panel w-full max-w-md p-6 text-center shadow-glow">
-                <div className="mx-auto flex h-24 w-24 items-center justify-center overflow-hidden rounded-full bg-ink-900 ring-4 ring-slate-100 dark:ring-slate-800">
-  <img 
-    src="logo.png" 
-    alt="Logo do Portal" 
-    className="h-full w-full object-cover" 
-  />
-</div>
-                  <h1 className="display-title mt-4 text-3xl font-semibold text-ink-950">A carregar sessão</h1>
-                  <p className="mt-2 text-sm text-ink-600">A sincronizar autenticação e perfil com Supabase.</p>
+                  <div
+                    className={`mx-auto flex h-24 w-24 items-center justify-center overflow-hidden rounded-full transition-all duration-300 ${
+                      isDark
+                        ? "bg-ink-800 ring-4 ring-ink-700 shadow-[0_0_15px_rgba(255,255,255,0.05)]"
+                        : "bg-white ring-4 ring-slate-100 shadow-md"
+                    }`}
+                  >
+                    <img
+                      src="logo.png"
+                      alt="Logo do Portal"
+                      className="h-full w-full object-contain p-2"
+                    />
+                  </div>
+                  <h1 className="display-title mt-4 text-3xl font-semibold text-ink-950">
+                    A carregar sessão
+                  </h1>
+                  <p className="mt-2 text-sm text-ink-600">
+                    A sincronizar autenticação e perfil com Supabase.
+                  </p>
                 </div>
               </div>
             </div>
@@ -898,7 +989,13 @@
 
         if (!currentAccount) {
           return (
-            <div className={isDark ? "min-h-screen bg-[#0f141c] text-slate-100" : "min-h-screen bg-[linear-gradient(180deg,#eef2f7_0%,#f7f9fc_45%,#eff3f8_100%)] text-ink-950"}>
+            <div
+              className={
+                isDark
+                  ? "min-h-screen bg-[#0f141c] text-slate-100"
+                  : "min-h-screen bg-[linear-gradient(180deg,#eef2f7_0%,#f7f9fc_45%,#eff3f8_100%)] text-ink-950"
+              }
+            >
               <div className="mx-auto flex max-w-6xl justify-end px-4 pt-4 lg:px-8">
                 <button
                   type="button"
@@ -911,55 +1008,67 @@
               <div className="mx-auto flex min-h-screen max-w-6xl items-center px-4 py-8 lg:px-8">
                 <div className="grid w-full gap-6 lg:grid-cols-[1.1fr_0.9fr]">
                   <section className="panel p-8 shadow-glow lg:p-10">
-                   <div className="mx-auto flex h-24 w-24 items-center justify-center overflow-hidden rounded-full bg-slate-800 ring-4 ring-slate-700 shadow-glow">
-  <img 
-    src="logo.png" 
-    alt="Logo do Portal" 
-    className="h-full w-full object-contain p-3" 
-  />
-                    </div>
+                    <div
+                      className={`mx-auto flex h-24 w-24 items-center justify-center overflow-hidden rounded-full transition-all duration-300 ${
+                        isDark
+                          ? "bg-ink-800 ring-4 ring-ink-700 shadow-[0_0_15px_rgba(255,255,255,0.05)]"
+                          : "bg-white ring-4 ring-slate-100 shadow-md"
+                      }`}
+                    >
+                      <img
+                        src="logo.png"
+                        alt="Logo do Portal"
+                        className="h-full w-full object-contain p-2"
+                      />
+                    </div>{" "}
                     <h1 className="display-title mt-5 max-w-2xl text-4xl font-semibold text-ink-950 md:text-[3.2rem] md:leading-[1.05]">
-UNIIP                    </h1>
+                      UNIIP{" "}
+                    </h1>
                     <p className="mt-4 max-w-2xl text-base leading-7 text-ink-700 md:text-lg">
-                      Aceda com o seu perfil para publicar ou consultar informação académica num ambiente claro, consistente e profissional.
+                   Ambiente único para todos os eventos, oportunidades e informações relevantes para o IPS
                     </p>
-
                     <div className="mt-8 grid gap-3 md:grid-cols-2">
                       <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                        <div className="text-sm text-slate-500">Conta de teste do professor</div>
-                        <div className="mt-2 font-semibold text-ink-950">professor@uniip.pt</div>
-                        <div className="text-sm text-ink-600">Username: professor</div>
-                        <div className="text-sm text-ink-600">Password: prof123</div>
+                        <div className="text-sm text-slate-500">
+                          Conta de teste do professor
+                        </div>
+                        <div className="mt-2 font-semibold text-ink-950">
+                          professor@uniip.pt
+                        </div>
+                        <div className="text-sm text-ink-600">
+                          Username: professor
+                        </div>
+                        <div className="text-sm text-ink-600">
+                          Password: prof123
+                        </div>
                       </div>
                       <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                        <div className="text-sm text-slate-500">Conta de teste do aluno</div>
-                        <div className="mt-2 font-semibold text-ink-950">aluno@uniip.pt</div>
-                        <div className="text-sm text-ink-600">Username: armindo</div>
-                        <div className="text-sm text-ink-600">Password: aluno123</div>
+                        <div className="text-sm text-slate-500">
+                          Conta de teste do aluno
+                        </div>
+                        <div className="mt-2 font-semibold text-ink-950">
+                          aluno@uniip.pt
+                        </div>
+                        <div className="text-sm text-ink-600">
+                          Username: armindo
+                        </div>
+                        <div className="text-sm text-ink-600">
+                          Password: aluno123
+                        </div>
                       </div>
                     </div>
-
-                    <div className="mt-8 grid gap-4 sm:grid-cols-3">
-                      <div className="rounded-lg border border-slate-200 bg-white p-4">
-                        <div className="text-sm text-slate-500">Fluxo</div>
-                        <div className="mt-1 font-semibold text-ink-950">Login simples</div>
-                      </div>
-                      <div className="rounded-lg border border-slate-200 bg-white p-4">
-                        <div className="text-sm text-slate-500">Permissões</div>
-                        <div className="mt-1 font-semibold text-ink-950">Professor / Aluno</div>
-                      </div>
-                      <div className="rounded-lg border border-slate-200 bg-white p-4">
-                        <div className="text-sm text-slate-500">Sessão</div>
-                        <div className="mt-1 font-semibold text-ink-950">Persistida no browser</div>
-                      </div>
-                    </div>
+            
                   </section>
 
                   <section className="panel p-6 shadow-glow lg:p-8">
                     <div className="flex items-center justify-between">
                       <div>
-                        <h2 className="text-2xl font-semibold text-ink-950">Autenticação</h2>
-                        <p className="mt-1 text-sm text-ink-600">Selecione o perfil e introduza os dados de acesso.</p>
+                        <h2 className="text-2xl font-semibold text-ink-950">
+                          Autenticação
+                        </h2>
+                        <p className="mt-1 text-sm text-ink-600">
+                          Selecione o perfil e introduza os dados de acesso.
+                        </p>
                       </div>
                       <BellRing className="h-5 w-5 text-slate-500" />
                     </div>
@@ -986,21 +1095,29 @@ UNIIP                    </h1>
 
                     <form className="mt-6 space-y-4" onSubmit={handleLogin}>
                       <label className="block space-y-2">
-                        <span className="text-sm font-medium text-ink-700">Email ou username</span>
+                        <span className="text-sm font-medium text-ink-700">
+                          Email ou username
+                        </span>
                         <input
                           value={loginIdentifier}
-                          onChange={(event) => setLoginIdentifier(event.target.value)}
+                          onChange={(event) =>
+                            setLoginIdentifier(event.target.value)
+                          }
                           className="w-full rounded-md border border-slate-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-ink-700 focus:bg-white"
                           placeholder="professor ou email@uniip.pt"
                         />
                       </label>
 
                       <label className="block space-y-2">
-                        <span className="text-sm font-medium text-ink-700">Password</span>
+                        <span className="text-sm font-medium text-ink-700">
+                          Password
+                        </span>
                         <input
                           type="password"
                           value={loginPassword}
-                          onChange={(event) => setLoginPassword(event.target.value)}
+                          onChange={(event) =>
+                            setLoginPassword(event.target.value)
+                          }
                           className="w-full rounded-md border border-slate-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-ink-700 focus:bg-white"
                           placeholder="A sua password"
                         />
@@ -1033,20 +1150,36 @@ UNIIP                    </h1>
         }
 
         return (
-          <div className={isDark ? "min-h-screen bg-[#0f141c] text-slate-100" : "min-h-screen bg-[#f2f4f7] text-ink-950"}>
+          <div
+            className={
+              isDark
+                ? "min-h-screen bg-[#0f141c] text-slate-100"
+                : "min-h-screen bg-[#f2f4f7] text-ink-950"
+            }
+          >
             <div className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
               <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-3 lg:px-8">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-md bg-ink-900 text-white">
-                    <img 
-    src="logo.png" 
-    alt="Logo do Portal" 
-    className="h-full w-full object-cover" 
-  />
+                  <div
+                    className={`mx-auto flex h-24 w-24 items-center justify-center overflow-hidden rounded-full transition-all duration-300 ${
+                      isDark
+                        ? "bg-ink-800 ring-4 ring-ink-700 shadow-[0_0_15px_rgba(255,255,255,0.05)]"
+                        : "bg-white ring-4 ring-slate-100 shadow-md"
+                    }`}
+                  >
+                    <img
+                      src="logo.png"
+                      alt="Logo do Portal"
+                      className="h-full w-full object-contain p-2"
+                    />
                   </div>
                   <div>
-                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">UNIIP</div>
-                    <div className="text-sm font-semibold text-ink-950">Portal de Avisos Académicos</div>
+                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      UNIIP
+                    </div>
+                    <div className="text-sm font-semibold text-ink-950">
+                      Portal de Avisos Académicos
+                    </div>
                   </div>
                 </div>
 
@@ -1086,21 +1219,35 @@ UNIIP                    </h1>
             <div className="mx-auto max-w-7xl px-4 py-6 lg:px-8">
               <div className="grid gap-8 lg:grid-cols-[220px_minmax(0,1fr)]">
                 <aside className="space-y-4 lg:sticky lg:top-20 lg:self-start">
+                  {/* BLOCO 1: NAVEGAÇÃO (Sempre visível) */}
                   <div className="panel p-4">
-                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Navegação</div>
+                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      Navegação
+                    </div>
                     <div className="mt-3 space-y-2 text-sm">
                       {[
                         { id: "feed", label: "Feed" },
-                        ...(currentAccount.role === "Professor" ? [{ id: "professor", label: "Publicar" }] : []),
+                        ...(currentAccount.role === "Professor"
+                          ? [{ id: "professor", label: "Publicar" }]
+                          : []),
                         { id: "account", label: "Conta" },
                       ].map((item) => (
                         <button
                           key={item.id}
                           type="button"
-                          onClick={() => (item.id === "account" ? navigateToAccountPage() : navigateToSection(item.id))}
+                          onClick={() =>
+                            item.id === "account"
+                              ? navigateToAccountPage()
+                              : navigateToSection(item.id)
+                          }
                           className={
                             "block w-full rounded-md px-3 py-2 text-left font-semibold transition " +
-                            ((item.id === "account" ? currentView === "account" : activeSection === item.id && currentView === "dashboard")
+                            ((
+                              item.id === "account"
+                                ? currentView === "account"
+                                : activeSection === item.id &&
+                                  currentView === "dashboard"
+                            )
                               ? "bg-slate-100 text-ink-950"
                               : "text-slate-600 hover:bg-slate-100 hover:text-ink-950")
                           }
@@ -1111,121 +1258,224 @@ UNIIP                    </h1>
                     </div>
                   </div>
 
-                  <div className="panel scroll-mt-24 space-y-3 p-4" id="filtros">
-                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Escola</div>
-                 <div className="flex flex-wrap gap-2">
-  {["Todas", ...Object.keys(schoolConfig)].map((school) => (
-    <button
-      key={school}
-      onClick={() => setSelectedSchool(school)}
-      className={
-        'inline-flex items-center gap-2 rounded-md border px-3 py-2 text-xs font-semibold transition ' +
-        (selectedSchool === school
-          ? 'border-accent-600 bg-accent-600 text-white' // <-- NOVA LINHA COM O VERDE
-          : 'border-slate-200 bg-white text-ink-700 hover:border-accent-200 hover:bg-accent-50/50')
-      }
-    >
-      {school}
-    </button>
-  ))}
-</div>
-
-                    <div className="pt-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Categoria</div>
-                    <div className="flex flex-wrap gap-2">
-                      {["Todas", ...Object.keys(categoryConfig)].map((category) => (
-                        <button
-                          key={category}
-                          onClick={() => setSelectedCategory(category)}
-                          className={
-                            'inline-flex items-center gap-2 rounded-md border px-3 py-2 text-xs font-semibold transition ' +
-                            (selectedCategory === category
-                              ? 'border-accent-600 bg-accent-600 text-white'
-                              : 'border-slate-200 bg-white text-ink-700 hover:border-accent-200 hover:bg-accent-50/50')
-                          }
-                        >
-                          {category}
-                        </button>
-                      ))}
-                    </div>
-
-                    <button
-                      onClick={() => {
-                        setSearch('');
-                        setSelectedSchool('Todas');
-                        setSelectedCategory('Todas');
-                      }}
-                      className="inline-flex items-center gap-2 rounded-md px-2 py-2 text-sm font-semibold text-ink-700 transition hover:bg-slate-100"
+                  {/* BLOCO 2: FILTROS (Escondido na página da Conta) */}
+                  {currentView !== "account" && (
+                    <div
+                      className="panel scroll-mt-24 space-y-3 p-4"
+                      id="filtros"
                     >
-                      <X className="h-4 w-4" />
-                      Limpar filtros
-                    </button>
-                  </div>
+                      <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                        Escola
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {["Todas", ...Object.keys(schoolConfig)].map(
+                          (school) => (
+                            <button
+                              key={school}
+                              onClick={() => setSelectedSchool(school)}
+                              className={
+                                "inline-flex items-center gap-2 rounded-md border px-3 py-2 text-xs font-semibold transition " +
+                                (selectedSchool === school
+                                  ? "border-accent-600 bg-accent-600 text-white"
+                                  : "border-slate-200 bg-white text-ink-700 hover:border-accent-200 hover:bg-accent-50/50")
+                              }
+                            >
+                              {school}
+                            </button>
+                          ),
+                        )}
+                      </div>
 
-                 
+                      <div className="pt-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                        Categoria
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {["Todas", ...Object.keys(categoryConfig)].map(
+                          (category) => (
+                            <button
+                              key={category}
+                              onClick={() => setSelectedCategory(category)}
+                              className={
+                                "inline-flex items-center gap-2 rounded-md border px-3 py-2 text-xs font-semibold transition " +
+                                (selectedCategory === category
+                                  ? "border-accent-600 bg-accent-600 text-white"
+                                  : "border-slate-200 bg-white text-ink-700 hover:border-accent-200 hover:bg-accent-50/50")
+                              }
+                            >
+                              {category}
+                            </button>
+                          ),
+                        )}
+                      </div>
+
+                      <button
+                        onClick={() => {
+                          setSearch("");
+                          setSelectedSchool("Todas");
+                          setSelectedCategory("Todas");
+                        }}
+                        className="inline-flex items-center gap-2 rounded-md px-2 py-2 text-sm font-semibold text-ink-700 transition hover:bg-slate-100"
+                      >
+                        <X className="h-4 w-4" />
+                        Limpar filtros
+                      </button>
+                    </div>
+                  )}
                 </aside>
 
                 <main className="space-y-4">
                   {currentView === "account" ? (
-                    <section className="panel space-y-4 p-5">
-                      <div className="flex items-end justify-between gap-4">
+                    <section className="panel flex flex-col gap-6 rounded-xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+                      {/* Cabeçalho */}
+                      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                         <div>
-                          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Conta</p>
-                          <h2 className="text-xl font-semibold text-ink-950">Perfil do utilizador</h2>
-                          <p className="text-sm text-ink-600">Esta secção está numa página separada do feed principal.</p>
+                          <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+                            Conta
+                          </p>
+                          <h2 className="mt-1 text-2xl font-bold text-ink-950">
+                            Perfil do utilizador
+                          </h2>
+                          <p className="mt-1 text-sm text-slate-500">
+                            Esta secção está numa página separada do feed
+                            principal.
+                          </p>
                         </div>
                         <button
                           type="button"
                           onClick={() => navigateToSection("feed")}
-                          className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-ink-700 transition hover:bg-slate-50"
+                          className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-ink-700 transition hover:bg-slate-50"
                         >
                           Voltar ao feed
                         </button>
                       </div>
 
-                      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                        <div className="rounded-lg border border-slate-200 bg-white p-4">
-                          <div className="text-sm text-slate-500">Nome</div>
-                          <div className="mt-1 text-base font-semibold text-ink-950">{currentAccount.name}</div>
+                      <hr className="border-slate-200" />
+
+                      {/* Grelha de Cartões */}
+                      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                        {/* Cartão: Nome */}
+                        <div className="flex items-center gap-4 rounded-xl border border-slate-200 bg-slate-50/50 p-4 shadow-sm transition-colors hover:bg-slate-50">
+                          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-600">
+                            <User className="h-6 w-6" />
+                          </div>
+                          <div className="overflow-hidden">
+                            <p className="text-xs font-medium text-slate-500">
+                              Nome completo
+                            </p>
+                            <p className="truncate text-base font-semibold text-ink-950">
+                              {currentAccount?.name ||
+                                session?.name ||
+                                "Sem Nome"}
+                            </p>
+                          </div>
                         </div>
-                        <div className="rounded-lg border border-slate-200 bg-white p-4">
-                          <div className="text-sm text-slate-500">Perfil</div>
-                          <div className="mt-1 text-base font-semibold text-ink-950">{currentAccount.role}</div>
+
+                        {/* Cartão: Perfil/Role */}
+                        <div className="flex items-center gap-4 rounded-xl border border-slate-200 bg-slate-50/50 p-4 shadow-sm transition-colors hover:bg-slate-50">
+                          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-600">
+                            <Shield className="h-6 w-6" />
+                          </div>
+                          <div className="overflow-hidden">
+                            <p className="text-xs font-medium text-slate-500">
+                              Perfil
+                            </p>
+                            <p className="truncate text-base font-semibold text-ink-950">
+                              {currentAccount?.role || session?.role || "Aluno"}
+                            </p>
+                          </div>
                         </div>
-                        <div className="rounded-lg border border-slate-200 bg-white p-4">
-                          <div className="text-sm text-slate-500">Email</div>
-                          <div className="mt-1 text-base font-semibold text-ink-950 break-all">{currentAccount.email}</div>
+
+                        {/* Cartão: Email */}
+                        <div className="flex items-center gap-4 rounded-xl border border-slate-200 bg-slate-50/50 p-4 shadow-sm transition-colors hover:bg-slate-50">
+                          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-violet-100 text-violet-600">
+                            <Mail className="h-6 w-6" />
+                          </div>
+                          <div className="overflow-hidden">
+                            <p className="text-xs font-medium text-slate-500">
+                              Email
+                            </p>
+                            <p className="truncate text-base font-semibold text-ink-950">
+                              {currentAccount?.email ||
+                                session?.email ||
+                                "Sem email"}
+                            </p>
+                          </div>
                         </div>
-                        <div className="rounded-lg border border-slate-200 bg-white p-4">
-                          <div className="text-sm text-slate-500">Username</div>
-                          <div className="mt-1 text-base font-semibold text-ink-950">{currentAccount.username || splitLoginIdentifier(currentAccount.email || "")}</div>
+
+                        {/* Cartão: Username */}
+                        <div className="flex items-center gap-4 rounded-xl border border-slate-200 bg-slate-50/50 p-4 shadow-sm transition-colors hover:bg-slate-50">
+                          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-pink-100 text-pink-600">
+                            <AtSign className="h-6 w-6" />
+                          </div>
+                          <div className="overflow-hidden">
+                            <p className="text-xs font-medium text-slate-500">
+                              Username
+                            </p>
+                            <p className="truncate text-base font-semibold text-ink-950">
+                              @
+                              {currentAccount?.username ||
+                                session?.username ||
+                                "anonimo"}
+                            </p>
+                          </div>
                         </div>
-                        <div className="rounded-lg border border-slate-200 bg-white p-4">
-                          <div className="text-sm text-slate-500">Total de avisos</div>
-                          <div className="mt-1 text-base font-semibold text-ink-950">{counts.total}</div>
+
+                        {/* Cartão: Total de Avisos */}
+                        <div className="flex items-center gap-4 rounded-xl border border-slate-200 bg-slate-50/50 p-4 shadow-sm transition-colors hover:bg-slate-50">
+                          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+                            <FileText className="h-6 w-6" />
+                          </div>
+                          <div className="overflow-hidden">
+                            <p className="text-xs font-medium text-slate-500">
+                              Total de avisos
+                            </p>
+                            <p className="truncate text-base font-semibold text-ink-950">
+                              {counts?.total || 0}
+                            </p>
+                          </div>
                         </div>
                       </div>
                     </section>
                   ) : (
                     <>
                       {currentAccount.role === "Professor" ? (
-                        <section className="panel scroll-mt-24 space-y-4 p-5" id="professor">
+                        <section
+                          className="panel scroll-mt-24 space-y-4 p-5"
+                          id="professor"
+                        >
                           <div className="flex items-end justify-between gap-4">
                             <div>
-                              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Publicação</p>
-                              <h2 className="text-xl font-semibold text-ink-950">Área do professor</h2>
-                              <p className="text-sm text-ink-600">Crie um aviso novo sem sair do feed.</p>
+                              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                                Publicação
+                              </p>
+                              <h2 className="text-xl font-semibold text-ink-950">
+                                Área do professor
+                              </h2>
+                              <p className="text-sm text-ink-600">
+                                Crie um aviso novo sem sair do feed.
+                              </p>
                             </div>
-                            <div className="hidden text-sm font-semibold text-ink-700 md:block">Modo de edição ativo</div>
+                            <div className="hidden text-sm font-semibold text-ink-700 md:block">
+                              Modo de edição ativo
+                            </div>
                           </div>
 
-                          <form className="grid gap-4 lg:grid-cols-[1.4fr_1fr]" onSubmit={handleCreateAnnouncement}>
+                          <form
+                            className="grid gap-4 lg:grid-cols-[1.4fr_1fr]"
+                            onSubmit={handleCreateAnnouncement}
+                          >
                             <div className="space-y-4">
                               <label className="block space-y-2">
-                                <span className="text-sm font-medium text-ink-700">Título</span>
+                                <span className="text-sm font-medium text-ink-700">
+                                  Título
+                                </span>
                                 <input
                                   value={announcementForm.title}
                                   onChange={(event) =>
-                                    setAnnouncementForm((current) => ({ ...current, title: event.target.value }))
+                                    setAnnouncementForm((current) => ({
+                                      ...current,
+                                      title: event.target.value,
+                                    }))
                                   }
                                   className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition placeholder:text-slate-400 focus:border-ink-900"
                                   placeholder="Ex.: Reunião extraordinária"
@@ -1233,11 +1483,16 @@ UNIIP                    </h1>
                               </label>
 
                               <label className="block space-y-2">
-                                <span className="text-sm font-medium text-ink-700">Descrição</span>
+                                <span className="text-sm font-medium text-ink-700">
+                                  Descrição
+                                </span>
                                 <textarea
                                   value={announcementForm.description}
                                   onChange={(event) =>
-                                    setAnnouncementForm((current) => ({ ...current, description: event.target.value }))
+                                    setAnnouncementForm((current) => ({
+                                      ...current,
+                                      description: event.target.value,
+                                    }))
                                   }
                                   rows="5"
                                   className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition placeholder:text-slate-400 focus:border-ink-900"
@@ -1248,11 +1503,16 @@ UNIIP                    </h1>
 
                             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1 lg:content-start">
                               <label className="block space-y-2">
-                                <span className="text-sm font-medium text-ink-700">Escola</span>
+                                <span className="text-sm font-medium text-ink-700">
+                                  Escola
+                                </span>
                                 <select
                                   value={announcementForm.school}
                                   onChange={(event) =>
-                                    setAnnouncementForm((current) => ({ ...current, school: event.target.value }))
+                                    setAnnouncementForm((current) => ({
+                                      ...current,
+                                      school: event.target.value,
+                                    }))
                                   }
                                   className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-ink-900"
                                 >
@@ -1265,29 +1525,41 @@ UNIIP                    </h1>
                               </label>
 
                               <label className="block space-y-2">
-                                <span className="text-sm font-medium text-ink-700">Categoria</span>
+                                <span className="text-sm font-medium text-ink-700">
+                                  Categoria
+                                </span>
                                 <select
                                   value={announcementForm.category}
                                   onChange={(event) =>
-                                    setAnnouncementForm((current) => ({ ...current, category: event.target.value }))
+                                    setAnnouncementForm((current) => ({
+                                      ...current,
+                                      category: event.target.value,
+                                    }))
                                   }
                                   className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-ink-900"
                                 >
-                                  {Object.keys(categoryConfig).map((category) => (
-                                    <option key={category} value={category}>
-                                      {category}
-                                    </option>
-                                  ))}
+                                  {Object.keys(categoryConfig).map(
+                                    (category) => (
+                                      <option key={category} value={category}>
+                                        {category}
+                                      </option>
+                                    ),
+                                  )}
                                 </select>
                               </label>
 
                               <label className="block space-y-2">
-                                <span className="text-sm font-medium text-ink-700">Data de expiração</span>
+                                <span className="text-sm font-medium text-ink-700">
+                                  Data de expiração
+                                </span>
                                 <input
                                   type="date"
                                   value={announcementForm.expiresAt}
                                   onChange={(event) =>
-                                    setAnnouncementForm((current) => ({ ...current, expiresAt: event.target.value }))
+                                    setAnnouncementForm((current) => ({
+                                      ...current,
+                                      expiresAt: event.target.value,
+                                    }))
                                   }
                                   className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-ink-900"
                                 />
@@ -1306,91 +1578,126 @@ UNIIP                    </h1>
                         </section>
                       ) : null}
 
-                      <div className="scroll-mt-24 flex items-center justify-between border-b border-slate-200 pb-3" id="feed">
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Lista editorial</p>
-                      <h2 className="text-xl font-semibold text-ink-950">Avisos em destaque</h2>
-                    </div>
-                    <div className="flex flex-wrap gap-2 text-sm text-slate-600">
-                      <span className="inline-flex items-center gap-2">
-                        <CalendarDays className="h-4 w-4" />
-                        Mais recentes primeiro
-                      </span>
-                      <span className="inline-flex items-center gap-2">
-                        <BellRing className="h-4 w-4" />
-                        Leitura rápida
-                      </span>
-                    </div>
-                  </div>
+                      <div
+                        className="scroll-mt-24 flex items-center justify-between border-b border-slate-200 pb-3"
+                        id="feed"
+                      >
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                            Lista editorial
+                          </p>
+                          <h2 className="text-xl font-semibold text-ink-950">
+                            Avisos em destaque
+                          </h2>
+                        </div>
+                        <div className="flex flex-wrap gap-2 text-sm text-slate-600">
+                          <span className="inline-flex items-center gap-2">
+                            <CalendarDays className="h-4 w-4" />
+                            Mais recentes primeiro
+                          </span>
+                          <span className="inline-flex items-center gap-2">
+                            <BellRing className="h-4 w-4" />
+                            Leitura rápida
+                          </span>
+                        </div>
+                      </div>
 
-                  {visibleAnnouncements.length === 0 ? (
-                    <div className="panel border-dashed p-10 text-center">
-                      <h3 className="text-xl font-semibold text-ink-950">Sem resultados com estes filtros</h3>
-                      <p className="mt-2 text-ink-600">
-                        Tente limpar a pesquisa ou alterar a Escola/Categoria para encontrar avisos.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="panel overflow-hidden divide-y divide-slate-200">
-                      {visibleAnnouncements.map((announcement) => {
-                        const school = schoolConfig[announcement.school];
-                        const category = categoryConfig[announcement.category];
-                        const schoolName = school.name;
-                        const expired = isExpired(announcement.expires_at);
+                      {visibleAnnouncements.length === 0 ? (
+                        <div className="panel border-dashed p-10 text-center">
+                          <h3 className="text-xl font-semibold text-ink-950">
+                            Sem resultados com estes filtros
+                          </h3>
+                          <p className="mt-2 text-ink-600">
+                            Tente limpar a pesquisa ou alterar a
+                            Escola/Categoria para encontrar avisos.
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="panel overflow-hidden divide-y divide-slate-200">
+                          {visibleAnnouncements.map((announcement) => {
+                            const school = schoolConfig[announcement.school];
+                            const category =
+                              categoryConfig[announcement.category];
+                            const schoolName = school.name;
+                            const expired = isExpired(announcement.expires_at);
 
-                        const schoolIcon =
-                          announcement.school === 'ESE' ? BookOpen :
-                          announcement.school === 'EST' ? GraduationCap :
-                          announcement.school === 'ESS' ? HeartHandshake : Globe2;
+                            const schoolIcon =
+                              announcement.school === "ESE"
+                                ? BookOpen
+                                : announcement.school === "EST"
+                                  ? GraduationCap
+                                  : announcement.school === "ESS"
+                                    ? HeartHandshake
+                                    : Globe2;
 
-                        const categoryIcon =
-                          announcement.category === 'Evento' ? CalendarDays :
-                          announcement.category === 'Voluntariado' ? Users : Megaphone;
+                            const categoryIcon =
+                              announcement.category === "Evento"
+                                ? CalendarDays
+                                : announcement.category === "Voluntariado"
+                                  ? Users
+                                  : Megaphone;
 
-                        return (
-                          <article
-                            key={announcement.id}
-                            className="group flex flex-col gap-4 px-4 py-5 transition duration-300 hover:bg-slate-50/50 md:flex-row md:items-start md:gap-5"
-                          >
-                            <div className={`h-1.5 w-20 shrink-0 rounded-full md:h-auto md:w-1 md:self-stretch ${school.badge}`} />
+                            return (
+                              <article
+                                key={announcement.id}
+                                className="group flex flex-col gap-4 px-4 py-5 transition duration-300 hover:bg-slate-50/50 md:flex-row md:items-start md:gap-5"
+                              >
+                                <div
+                                  className={`h-1.5 w-20 shrink-0 rounded-full md:h-auto md:w-1 md:self-stretch ${school.badge}`}
+                                />
 
-                            <div className="min-w-0 flex-1 space-y-3">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <div className={`inline-flex items-center gap-2 rounded-md border px-3 py-1 text-xs font-semibold ${school.classes}`}>
-                                  {React.createElement(schoolIcon, { className: 'h-3.5 w-3.5' })}
-                                  {school.label}
+                                <div className="min-w-0 flex-1 space-y-3">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <div
+                                      className={`inline-flex items-center gap-2 rounded-md border px-3 py-1 text-xs font-semibold ${school.classes}`}
+                                    >
+                                      {React.createElement(schoolIcon, {
+                                        className: "h-3.5 w-3.5",
+                                      })}
+                                      {school.label}
+                                    </div>
+                                    <span className="inline-flex items-center rounded-md border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
+                                      {announcement.category}
+                                    </span>
+                                    {expired ? (
+                                      <span className="inline-flex items-center rounded-md border border-coral-100 bg-coral-50 px-3 py-1 text-xs font-semibold text-coral-500">
+                                        Expirado
+                                      </span>
+                                    ) : null}
+                                  </div>
+
+                                  <h3 className="text-xl font-semibold leading-8 text-ink-950">
+                                    {announcement.title}
+                                  </h3>
+
+                                  <p className="max-w-3xl text-sm leading-6 text-ink-600">
+                                    {announcement.description}
+                                  </p>
+
+                                  <div className="flex flex-wrap items-center gap-3 text-sm text-slate-500">
+                                    <span className="inline-flex items-center gap-2">
+                                      {React.createElement(categoryIcon, {
+                                        className: "h-4 w-4",
+                                      })}
+                                      {schoolName}
+                                    </span>
+                                    <span>
+                                      Publicado em{" "}
+                                      {formatDate(announcement.created_at)}
+                                    </span>
+                                    <span>•</span>
+                                    <span>
+                                      {expired
+                                        ? "Expirado"
+                                        : `Expira em ${formatDate(announcement.expires_at)}`}
+                                    </span>
+                                  </div>
                                 </div>
-                                <span className="inline-flex items-center rounded-md border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
-                                  {announcement.category}
-                                </span>
-                                {expired ? (
-                                  <span className="inline-flex items-center rounded-md border border-coral-100 bg-coral-50 px-3 py-1 text-xs font-semibold text-coral-500">
-                                    Expirado
-                                  </span>
-                                ) : null}
-                              </div>
-
-                              <h3 className="text-xl font-semibold leading-8 text-ink-950">{announcement.title}</h3>
-
-                              <p className="max-w-3xl text-sm leading-6 text-ink-600">
-                                {announcement.description}
-                              </p>
-
-                          <div className="flex flex-wrap items-center gap-3 text-sm text-slate-500">
-  <span className="inline-flex items-center gap-2">
-    {React.createElement(categoryIcon, { className: 'h-4 w-4' })}
-    {schoolName}
-  </span>
-  <span>Publicado em {formatDate(announcement.created_at)}</span>
-  <span>•</span>
-  <span>{expired ? 'Expirado' : `Expira em ${formatDate(announcement.expires_at)}`}</span>
-</div>
-                            </div>
-                          </article>
-                        );
-                      })}
-                    </div>
-                  )}
+                              </article>
+                            );
+                          })}
+                        </div>
+                      )}
                     </>
                   )}
                 </main>
@@ -1404,7 +1711,9 @@ UNIIP                    </h1>
         return String(value || "").split("@")[0];
       }
 
-      ReactDOM.createRoot(document.getElementById('root')).render(<Dashboard />);
+      ReactDOM.createRoot(document.getElementById("root")).render(
+        <Dashboard />,
+      );
     </script>
   </head>
   <body class="bg-slate-100 antialiased">
