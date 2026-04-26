@@ -419,6 +419,8 @@
           role: "Aluno",
           school: "ESCE",
         });
+        const [profilePhoto, setProfilePhoto] = useState("");
+        const [profilePhotoError, setProfilePhotoError] = useState("");
         const [activeSection, setActiveSection] = useState("feed");
         const [currentView, setCurrentView] = useState("dashboard");
         const announcementsRequestRef = useRef(0);
@@ -747,6 +749,24 @@
         }, [currentAccount?.role, currentAccount?.school]);
 
         useEffect(() => {
+          const userId = currentAccount?.id;
+
+          if (!userId) {
+            setProfilePhoto("");
+            setProfilePhotoError("");
+            return;
+          }
+
+          try {
+            const storedPhoto = localStorage.getItem(`uniip-avatar-${userId}`);
+            setProfilePhoto(storedPhoto || "");
+            setProfilePhotoError("");
+          } catch {
+            setProfilePhoto("");
+          }
+        }, [currentAccount?.id]);
+
+        useEffect(() => {
           if (!currentAccount) {
             return;
           }
@@ -939,6 +959,79 @@
 
         const toggleTheme = () => {
           setThemeMode((current) => (current === "dark" ? "light" : "dark"));
+        };
+
+        const handleProfilePhotoChange = (event) => {
+          const file = event.target.files?.[0];
+
+          if (!file) {
+            return;
+          }
+
+          if (!file.type.startsWith("image/")) {
+            setProfilePhotoError("Seleciona um ficheiro de imagem válido.");
+            event.target.value = "";
+            return;
+          }
+
+          const maxSizeInBytes = 2 * 1024 * 1024;
+          if (file.size > maxSizeInBytes) {
+            setProfilePhotoError("A imagem deve ter no máximo 2MB.");
+            event.target.value = "";
+            return;
+          }
+
+          const userId = currentAccount?.id;
+          if (!userId) {
+            setProfilePhotoError("Sessão inválida para guardar a foto.");
+            event.target.value = "";
+            return;
+          }
+
+          const reader = new FileReader();
+
+          reader.onload = () => {
+            const result = typeof reader.result === "string" ? reader.result : "";
+
+            if (!result) {
+              setProfilePhotoError("Não foi possível processar a imagem.");
+              return;
+            }
+
+            try {
+              localStorage.setItem(`uniip-avatar-${userId}`, result);
+              setProfilePhoto(result);
+              setProfilePhotoError("");
+            } catch {
+              setProfilePhotoError(
+                "Sem espaço para guardar a imagem no browser. Usa uma imagem menor.",
+              );
+            }
+          };
+
+          reader.onerror = () => {
+            setProfilePhotoError("Erro ao ler a imagem selecionada.");
+          };
+
+          reader.readAsDataURL(file);
+          event.target.value = "";
+        };
+
+        const handleRemoveProfilePhoto = () => {
+          const userId = currentAccount?.id;
+
+          if (!userId) {
+            return;
+          }
+
+          try {
+            localStorage.removeItem(`uniip-avatar-${userId}`);
+          } catch {
+            // Ignore storage errors.
+          }
+
+          setProfilePhoto("");
+          setProfilePhotoError("");
         };
 
         const handleCreateAnnouncement = async (event) => {
@@ -1526,6 +1619,60 @@
                       </div>
 
                       <hr className="border-slate-200" />
+
+                      <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 sm:p-5">
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          Foto de perfil
+                        </p>
+                        <div className="mt-3 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="flex items-center gap-4">
+                            <div className="h-20 w-20 overflow-hidden rounded-full border border-slate-200 bg-white">
+                              {profilePhoto ? (
+                                <img
+                                  src={profilePhoto}
+                                  alt="Foto de perfil"
+                                  className="h-full w-full object-cover"
+                                />
+                              ) : (
+                                <div className="flex h-full w-full items-center justify-center bg-slate-100 text-slate-500">
+                                  <User className="h-8 w-8" />
+                                </div>
+                              )}
+                            </div>
+                            <div>
+                              <p className="text-sm font-semibold text-ink-950">
+                                {profilePhoto ? "Foto atualizada" : "Sem foto definida"}
+                              </p>
+                              <p className="text-xs text-slate-500">
+                                JPG, PNG ou WEBP com tamanho máximo de 2MB.
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex flex-col gap-2 sm:flex-row">
+                            <label className="inline-flex cursor-pointer items-center justify-center rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-ink-700 transition hover:bg-slate-50">
+                              Alterar foto
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={handleProfilePhotoChange}
+                                className="hidden"
+                              />
+                            </label>
+                            <button
+                              type="button"
+                              onClick={handleRemoveProfilePhoto}
+                              className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-ink-700 transition hover:bg-slate-50"
+                            >
+                              Remover foto
+                            </button>
+                          </div>
+                        </div>
+                        {profilePhotoError ? (
+                          <div className="mt-3 rounded-md border border-coral-100 bg-coral-50 px-3 py-2 text-sm text-coral-500">
+                            {profilePhotoError}
+                          </div>
+                        ) : null}
+                      </div>
 
                       {/* Grelha de Cartões */}
                       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
