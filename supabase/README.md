@@ -56,6 +56,8 @@ Valida estes cenários após login com cada conta:
 1. Aluno não consegue publicar aviso (`insert` bloqueado).
 2. Professor consegue publicar aviso apenas na própria escola.
 3. Utilizador autenticado só lê avisos da sua escola.
+4. Aluno consegue inscrever-se em avisos da sua escola.
+5. Quando um aviso tem limite de inscrições, o sistema bloqueia novas inscrições ao atingir o máximo.
 
 Sugestão prática:
 - Abrir duas sessões (normal + incógnito), uma por role, e comparar comportamento.
@@ -67,6 +69,7 @@ Sugestão prática:
 - `seed-users.mjs`: seed idempotente de utilizadores no Auth.
 - `05_secretaria_user_management.sql`: funções RPC para gestão de utilizadores pela Secretaria.
 - `06_profile_avatar.sql`: coluna `avatar_url` e políticas do bucket `avatars`.
+- `01_schema.sql` + `02_rls.sql`: incluem também inscrições em avisos (`announcement_registrations`), limite máximo (`max_registrations`) e RPCs `register_announcement` / `unregister_announcement`.
 
 ## 5) Próximo passo no frontend
 Integrar Supabase no `index.html` e substituir:

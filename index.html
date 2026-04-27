@@ -220,6 +220,19 @@
           year: "numeric",
         }).format(new Date(value));
 
+      const formatMonthYear = (value) =>
+        new Intl.DateTimeFormat("pt-PT", {
+          month: "long",
+          year: "numeric",
+        }).format(value);
+
+      const toDateKey = (value) => {
+        const year = value.getFullYear();
+        const month = String(value.getMonth() + 1).padStart(2, "0");
+        const day = String(value.getDate()).padStart(2, "0");
+        return `${year}-${month}-${day}`;
+      };
+
       const isExpired = (expiresAt) =>
         new Date(expiresAt).setHours(23, 59, 59, 999) < Date.now();
 
@@ -365,6 +378,7 @@
 
       function Dashboard() {
         const sectionHashMap = {
+          calendar: "#calendario",
           feed: "#feed",
           filtros: "#filtros",
           professor: "#publicar",
@@ -400,6 +414,11 @@
           school: "ESE",
           category: "Evento",
           expiresAt: "",
+          maxRegistrations: "",
+        });
+        const [calendarMonth, setCalendarMonth] = useState(() => {
+          const today = new Date();
+          return new Date(today.getFullYear(), today.getMonth(), 1);
         });
         const [search, setSearch] = useState("");
         const [selectedSchool, setSelectedSchool] = useState("Todas");
@@ -421,6 +440,9 @@
         });
         const [profilePhoto, setProfilePhoto] = useState("");
         const [profilePhotoError, setProfilePhotoError] = useState("");
+        const [registrationError, setRegistrationError] = useState("");
+        const [registrationInfo, setRegistrationInfo] = useState("");
+        const [registrationActionId, setRegistrationActionId] = useState("");
         const [activeSection, setActiveSection] = useState("feed");
         const [currentView, setCurrentView] = useState("dashboard");
         const announcementsRequestRef = useRef(0);
@@ -429,6 +451,7 @@
         const currentAccount = profile || session;
         const supabaseReady = Boolean(supabaseClient);
         const isSecretaria = currentAccount?.role === "Secretaria";
+        const isAluno = currentAccount?.role === "Aluno";
 
         const loadAnnouncements = async () => {
           if (!supabaseClient) return [];
@@ -436,16 +459,58 @@
             const query = supabaseClient
               .from("announcements")
               .select(
-                "id, title, description, school, category, created_at, expires_at",
+                "id, title, description, school, category, created_at, expires_at, max_registrations",
               )
               .order("created_at", { ascending: false });
 
-            const { data } = await query;
-            return data || [];
+            const { data, error } = await query;
+
+            if (error) {
+              throw error;
+            }
+
+            let registrationRows = [];
+            const { data: registrationsData, error: registrationsError } =
+              await supabaseClient
+                .from("announcement_registrations")
+                .select("announcement_id, student_id");
+
+            if (!registrationsError) {
+              registrationRows = registrationsData || [];
+            }
+
+            const countsByAnnouncementId = registrationRows.reduce(
+              (acc, item) => {
+                acc[item.announcement_id] = (acc[item.announcement_id] || 0) + 1;
+                return acc;
+              },
+              {},
+            );
+
+            const myRegistrationIds = new Set(
+              registrationRows
+                .filter((item) => item.student_id === session?.id)
+                .map((item) => item.announcement_id),
+            );
+
+            return (data || []).map((announcement) => ({
+              ...announcement,
+              registrations_count: countsByAnnouncementId[announcement.id] || 0,
+              user_registered: myRegistrationIds.has(announcement.id),
+            }));
           } catch (err) {
             console.error("Load announcements error:", err);
             return [];
           }
+        };
+
+        const refreshAnnouncements = async () => {
+          const requestId = ++announcementsRequestRef.current;
+          const data = await loadAnnouncements();
+          if (requestId !== announcementsRequestRef.current) {
+            return;
+          }
+          setAnnouncements(data);
         };
 
         const loadProfile = async (user) => {
@@ -677,17 +742,8 @@
         }, []);
 
         useEffect(() => {
-          const loadData = async () => {
-            const requestId = ++announcementsRequestRef.current;
-            const data = await loadAnnouncements();
-            if (requestId !== announcementsRequestRef.current) {
-              return;
-            }
-            setAnnouncements(data);
-          };
-
           if (supabaseClient && currentView === "dashboard" && session) {
-            loadData();
+            refreshAnnouncements();
 
             // Sintaxe correta do Supabase V2
             const subscription = supabaseClient
@@ -696,7 +752,18 @@
                 "postgres_changes",
                 { event: "*", schema: "public", table: "announcements" },
                 (payload) => {
-                  loadData();
+                  refreshAnnouncements();
+                },
+              )
+              .on(
+                "postgres_changes",
+                {
+                  event: "*",
+                  schema: "public",
+                  table: "announcement_registrations",
+                },
+                () => {
+                  refreshAnnouncements();
                 },
               )
               .subscribe();
@@ -768,10 +835,10 @@
 
           const sectionIds =
             currentAccount.role === "Professor"
-              ? ["feed", "filtros", "professor"]
+              ? ["calendar", "feed", "filtros", "professor"]
               : currentAccount.role === "Secretaria"
-                ? ["feed", "filtros", "secretaria"]
-              : ["feed", "filtros"];
+                ? ["calendar", "feed", "filtros", "secretaria"]
+              : ["calendar", "feed", "filtros"];
 
           const sections = sectionIds
             .map((id) => document.getElementById(id))
@@ -815,6 +882,16 @@
             let nextSection = "feed";
             if (hash === "#filtros") {
               nextSection = "filtros";
+            } else if (hash === "#calendario") {
+              setCurrentView("calendar");
+              setActiveSection("calendar");
+              requestAnimationFrame(() => {
+                const target = document.getElementById("calendar-page");
+                if (target) {
+                  target.scrollIntoView({ behavior: "smooth", block: "start" });
+                }
+              });
+              return;
             } else if (hash === "#publicar" && session?.role === "Professor") {
               nextSection = "professor";
             } else if (
@@ -844,6 +921,11 @@
 
         const navigateToSection = (sectionId) => {
           const nextHash = sectionHashMap[sectionId] || "#feed";
+
+          if (sectionId === "calendar") {
+            navigateToCalendarPage();
+            return;
+          }
 
           if (currentView !== "dashboard") {
             setCurrentView("dashboard");
@@ -875,6 +957,13 @@
           setCurrentView("account");
           setActiveSection("account");
           window.location.hash = "#conta";
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        };
+
+        const navigateToCalendarPage = () => {
+          setCurrentView("calendar");
+          setActiveSection("calendar");
+          window.location.hash = "#calendario";
           window.scrollTo({ top: 0, behavior: "smooth" });
         };
 
@@ -1098,6 +1187,20 @@
             return;
           }
 
+          const maxRegistrationsValue = announcementForm.maxRegistrations.trim();
+          const parsedMaxRegistrations =
+            maxRegistrationsValue === ""
+              ? null
+              : Number.parseInt(maxRegistrationsValue, 10);
+
+          if (
+            maxRegistrationsValue !== "" &&
+            (!Number.isInteger(parsedMaxRegistrations) || parsedMaxRegistrations <= 0)
+          ) {
+            setPublishError("O limite máximo deve ser um número inteiro maior que 0.");
+            return;
+          }
+
           try {
             const { error } = await supabaseClient
               .from("announcements")
@@ -1107,6 +1210,7 @@
                 school: announcementForm.school,
                 category: announcementForm.category,
                 expires_at: announcementForm.expiresAt,
+                max_registrations: parsedMaxRegistrations,
                 author_id: session.id,
               });
 
@@ -1118,10 +1222,64 @@
               school: announcementForm.school,
               category: announcementForm.category,
               expiresAt: "",
+              maxRegistrations: "",
             });
             setPublishError("");
           } catch (err) {
             setPublishError(err.message || "Erro ao publicar aviso.");
+          }
+        };
+
+        const handleToggleRegistration = async (announcement) => {
+          if (!isAluno || !supabaseClient) {
+            setRegistrationError("Apenas alunos podem gerir inscrições.");
+            return;
+          }
+
+          if (!announcement?.id) {
+            return;
+          }
+
+          const isRegistered = Boolean(announcement.user_registered);
+
+          if (
+            !isRegistered &&
+            announcement.max_registrations != null &&
+            announcement.registrations_count >= announcement.max_registrations
+          ) {
+            setRegistrationError("Este aviso já atingiu o limite máximo de inscrições.");
+            return;
+          }
+
+          setRegistrationError("");
+          setRegistrationInfo("");
+          setRegistrationActionId(announcement.id);
+
+          try {
+            const rpcName = isRegistered
+              ? "unregister_announcement"
+              : "register_announcement";
+
+            const { error } = await supabaseClient.rpc(rpcName, {
+              p_announcement_id: announcement.id,
+            });
+
+            if (error) {
+              throw error;
+            }
+
+            setRegistrationInfo(
+              isRegistered
+                ? "Inscrição removida com sucesso."
+                : "Inscrição realizada com sucesso.",
+            );
+            await refreshAnnouncements();
+          } catch (error) {
+            setRegistrationError(
+              error.message || "Não foi possível atualizar a inscrição.",
+            );
+          } finally {
+            setRegistrationActionId("");
           }
         };
 
@@ -1242,6 +1400,77 @@
           };
         }, [announcements]);
 
+        const calendarEvents = useMemo(() => {
+          return announcements
+            .filter(
+              (announcement) =>
+                announcement.category === "Evento" && announcement.expires_at,
+            )
+            .map((announcement) => {
+              const dateKey = announcement.expires_at.slice(0, 10);
+              const [year, month, day] = dateKey.split("-").map(Number);
+
+              return {
+                ...announcement,
+                eventDate: new Date(year, month - 1, day),
+                dateKey,
+              };
+            })
+            .sort((a, b) => a.eventDate - b.eventDate);
+        }, [announcements]);
+
+        const calendarDays = useMemo(() => {
+          const year = calendarMonth.getFullYear();
+          const month = calendarMonth.getMonth();
+          const firstDay = new Date(year, month, 1);
+          const leadingDays = (firstDay.getDay() + 6) % 7;
+          const daysInMonth = new Date(year, month + 1, 0).getDate();
+          const days = [];
+
+          for (let index = 0; index < leadingDays; index += 1) {
+            days.push(null);
+          }
+
+          for (let day = 1; day <= daysInMonth; day += 1) {
+            days.push(new Date(year, month, day));
+          }
+
+          while (days.length % 7 !== 0) {
+            days.push(null);
+          }
+
+          return days;
+        }, [calendarMonth]);
+
+        const monthEvents = useMemo(() => {
+          return calendarEvents.filter((event) => {
+            const eventYear = event.eventDate.getFullYear();
+            const eventMonth = event.eventDate.getMonth();
+            return (
+              eventYear === calendarMonth.getFullYear() &&
+              eventMonth === calendarMonth.getMonth()
+            );
+          });
+        }, [calendarEvents, calendarMonth]);
+
+        const eventDays = useMemo(() => {
+          return monthEvents.reduce((acc, event) => {
+            const dayKey = event.dateKey;
+            acc[dayKey] = acc[dayKey] ? [...acc[dayKey], event] : [event];
+            return acc;
+          }, {});
+        }, [monthEvents]);
+
+        const shiftCalendarMonth = (offset) => {
+          setCalendarMonth((current) => {
+            return new Date(
+              current.getFullYear(),
+              current.getMonth() + offset,
+              1,
+            );
+          });
+        };
+
         if (!authReady || authLoading) {
           return (
             <div
@@ -1316,7 +1545,7 @@
                       UNIIP{" "}
                     </h1>
                     <p className="mt-4 max-w-2xl text-base leading-7 text-ink-700 md:text-lg">
-                   Ambiente único para todos os eventos, oportunidades e informações relevantes para o IPS
+                      Ambiente único para todos os eventos, oportunidades e informações relevantes para o IPS
                     </p>
                     <div className="mt-8 grid gap-3 md:grid-cols-2">
                       <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
@@ -1362,7 +1591,6 @@
                         </div>
                       </div>
                     </div>
-            
                   </section>
 
                   <section className="panel p-6 shadow-glow lg:p-8">
@@ -1525,12 +1753,12 @@
             <div className="mx-auto max-w-7xl px-4 py-6 lg:px-8">
               <div
                 className={
-                  currentView === "account"
+                  currentView === "account" || currentView === "calendar"
                     ? "grid gap-8"
                     : "grid gap-8 lg:grid-cols-[220px_minmax(0,1fr)]"
                 }
               >
-                {currentView !== "account" ? (
+                {currentView !== "account" && currentView !== "calendar" ? (
                   <aside className="space-y-4 lg:sticky lg:top-20 lg:self-start">
                   {/* BLOCO 1: NAVEGAÇÃO (Sempre visível) */}
                   <div className="panel p-4">
@@ -1539,6 +1767,7 @@
                     </div>
                     <div className="mt-3 space-y-2 text-sm">
                       {[
+                        { id: "calendar", label: "Calendário" },
                         { id: "feed", label: "Feed" },
                         ...(currentAccount.role === "Professor"
                           ? [{ id: "professor", label: "Publicar" }]
@@ -1554,6 +1783,8 @@
                           onClick={() =>
                             item.id === "account"
                               ? navigateToAccountPage()
+                              : item.id === "calendar"
+                                ? navigateToCalendarPage()
                               : navigateToSection(item.id)
                           }
                           className={
@@ -1561,6 +1792,8 @@
                             ((
                               item.id === "account"
                                 ? currentView === "account"
+                                : item.id === "calendar"
+                                  ? currentView === "calendar"
                                 : activeSection === item.id &&
                                   currentView === "dashboard"
                             )
@@ -1641,7 +1874,239 @@
                 ) : null}
 
                 <main className="space-y-4">
-                  {currentView === "account" ? (
+                  {currentView === "calendar" ? (
+                    <section className="panel flex flex-col gap-6 rounded-xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+                      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+                            Agenda
+                          </p>
+                          <h2 className="mt-1 text-2xl font-bold text-ink-950">
+                            Calendário de eventos
+                          </h2>
+                          <p className="mt-1 text-sm text-slate-500">
+                            Vista separada apenas para os eventos do portal.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => navigateToSection("feed")}
+                          className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-ink-700 transition hover:bg-slate-50"
+                        >
+                          Voltar ao feed
+                        </button>
+                      </div>
+
+                      <section className="panel space-y-5 rounded-xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                          <div>
+                            <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+                              Agenda
+                            </p>
+                            <h3 className="mt-1 text-2xl font-bold text-ink-950">
+                              Calendário de eventos
+                            </h3>
+                            <p className="mt-1 text-sm text-slate-500">
+                              {monthEvents.length > 0
+                                ? `${monthEvents.length} evento${monthEvents.length === 1 ? "" : "s"} neste mês`
+                                : "Sem eventos para este mês. Publica avisos com categoria Evento para começar."}
+                            </p>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => shiftCalendarMonth(-1)}
+                              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-ink-700 transition hover:bg-slate-50"
+                            >
+                              Anterior
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const today = new Date();
+                                setCalendarMonth(
+                                  new Date(
+                                    today.getFullYear(),
+                                    today.getMonth(),
+                                    1,
+                                  ),
+                                );
+                              }}
+                              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-ink-700 transition hover:bg-slate-50"
+                            >
+                              Hoje
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => shiftCalendarMonth(1)}
+                              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-ink-700 transition hover:bg-slate-50"
+                            >
+                              Seguinte
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="grid gap-5 xl:grid-cols-[1.35fr_0.9fr]">
+                          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-4 sm:px-5">
+                              <div>
+                                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                                  Mês atual
+                                </p>
+                                <h4 className="text-lg font-semibold text-ink-950">
+                                  {formatMonthYear(calendarMonth).replace(/^./, (letter) => letter.toUpperCase())}
+                                </h4>
+                              </div>
+                              <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-600">
+                                <CalendarDays className="h-4 w-4" />
+                                Vista mensal
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50 text-center text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                              {["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"].map(
+                                (dayLabel) => (
+                                  <div key={dayLabel} className="px-2 py-3">
+                                    {dayLabel}
+                                  </div>
+                                ),
+                              )}
+                            </div>
+
+                            <div className="grid grid-cols-7 gap-px bg-slate-200">
+                              {calendarDays.map((day, index) => {
+                                if (!day) {
+                                  return (
+                                    <div
+                                      key={`empty-${index}`}
+                                      className="min-h-28 bg-slate-50/80"
+                                    />
+                                  );
+                                }
+
+                                const dayKey = toDateKey(day);
+                                const dayEvents = eventDays[dayKey] || [];
+                                const isToday = dayKey === toDateKey(new Date());
+
+                                return (
+                                  <div
+                                    key={dayKey}
+                                    className={
+                                      "min-h-28 bg-white p-2 text-sm transition hover:bg-slate-50 " +
+                                      (isToday ? "ring-2 ring-inset ring-accent-500" : "")
+                                    }
+                                  >
+                                    <div className="flex items-start justify-between gap-2">
+                                      <span className="text-sm font-semibold text-ink-950">
+                                        {day.getDate()}
+                                      </span>
+                                      {isToday ? (
+                                        <span className="rounded-full bg-accent-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.16em] text-accent-600">
+                                          Hoje
+                                        </span>
+                                      ) : null}
+                                    </div>
+
+                                    <div className="mt-2 space-y-1.5">
+                                      {dayEvents.length > 0 ? (
+                                        dayEvents.slice(0, 2).map((event) => (
+                                          <div
+                                            key={event.id}
+                                            className="rounded-md border border-sky-100 bg-sky-50 px-2 py-1.5 text-xs font-semibold text-sky-800"
+                                          >
+                                            <p className="leading-4">{event.title}</p>
+                                          </div>
+                                        ))
+                                      ) : (
+                                        <p className="text-xs text-slate-400">
+                                          Sem eventos
+                                        </p>
+                                      )}
+
+                                      {dayEvents.length > 2 ? (
+                                        <p className="text-[11px] font-semibold text-slate-500">
+                                          +{dayEvents.length - 2} evento(s)
+                                        </p>
+                                      ) : null}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          <div className="space-y-4">
+                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                              <div className="flex items-center justify-between gap-3">
+                                <div>
+                                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                                    Próximos eventos
+                                  </p>
+                                  <h4 className="mt-1 text-lg font-semibold text-ink-950">
+                                    Agenda do mês
+                                  </h4>
+                                </div>
+                                <Sparkles className="h-5 w-5 text-slate-500" />
+                              </div>
+
+                              <div className="mt-4 space-y-3">
+                                {monthEvents.length > 0 ? (
+                                  monthEvents.map((event) => (
+                                    <article
+                                      key={event.id}
+                                      className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+                                    >
+                                      <div className="flex items-start justify-between gap-3">
+                                        <div>
+                                          <p className="text-sm font-semibold text-ink-950">
+                                            {event.title}
+                                          </p>
+                                          <p className="mt-1 text-xs text-slate-500">
+                                            {schoolConfig[event.school]?.name || event.school}
+                                          </p>
+                                        </div>
+                                        <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                                          {event.eventDate.toLocaleDateString("pt-PT", {
+                                            day: "2-digit",
+                                            month: "short",
+                                          })}
+                                        </div>
+                                      </div>
+                                      <p className="mt-3 text-sm leading-6 text-ink-600">
+                                        {event.description}
+                                      </p>
+                                    </article>
+                                  ))
+                                ) : (
+                                  <div className="rounded-xl border border-dashed border-slate-300 bg-white p-4 text-sm text-slate-500">
+                                    Ainda não existem eventos marcados para este mês.
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                                Legenda
+                              </p>
+                              <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-slate-600">
+                                <span className="rounded-full bg-accent-50 px-3 py-1 text-accent-600">
+                                  Hoje
+                                </span>
+                                <span className="rounded-full bg-sky-50 px-3 py-1 text-sky-700">
+                                  Evento publicado
+                                </span>
+                                <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-600">
+                                  Sem eventos
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </section>
+                    </section>
+                  ) : currentView === "account" ? (
                     <section className="panel flex flex-col gap-6 rounded-xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
                       {/* Cabeçalho */}
                       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -2254,6 +2719,25 @@
                                 />
                               </label>
 
+                              <label className="block space-y-2">
+                                <span className="text-sm font-medium text-ink-700">
+                                  Limite máximo de inscrições (opcional)
+                                </span>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  value={announcementForm.maxRegistrations}
+                                  onChange={(event) =>
+                                    setAnnouncementForm((current) => ({
+                                      ...current,
+                                      maxRegistrations: event.target.value,
+                                    }))
+                                  }
+                                  className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-ink-900"
+                                  placeholder="Ex.: 30"
+                                />
+                              </label>
+
                               <div className="flex items-end">
                                 <button
                                   type="submit"
@@ -2264,6 +2748,11 @@
                               </div>
                             </div>
                           </form>
+                          {publishError ? (
+                            <p className="rounded-md border border-coral-100 bg-coral-50 px-3 py-2 text-sm text-coral-500">
+                              {publishError}
+                            </p>
+                          ) : null}
                         </section>
                       ) : null}
 
@@ -2291,6 +2780,18 @@
                         </div>
                       </div>
 
+                      {registrationInfo ? (
+                        <p className="rounded-md border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+                          {registrationInfo}
+                        </p>
+                      ) : null}
+
+                      {registrationError ? (
+                        <p className="rounded-md border border-coral-100 bg-coral-50 px-3 py-2 text-sm text-coral-500">
+                          {registrationError}
+                        </p>
+                      ) : null}
+
                       {visibleAnnouncements.length === 0 ? (
                         <div className="panel border-dashed p-10 text-center">
                           <h3 className="text-xl font-semibold text-ink-950">
@@ -2309,6 +2810,21 @@
                               categoryConfig[announcement.category];
                             const schoolName = school.name;
                             const expired = isExpired(announcement.expires_at);
+                            const registrationsCount =
+                              announcement.registrations_count || 0;
+                            const hasLimit =
+                              announcement.max_registrations != null;
+                            const isFull =
+                              hasLimit &&
+                              registrationsCount >= announcement.max_registrations;
+                            const isRegistered = Boolean(
+                              announcement.user_registered,
+                            );
+                            const canRegister =
+                              isAluno &&
+                              !expired &&
+                              (isRegistered || !isFull);
+                            const isBusy = registrationActionId === announcement.id;
 
                             const schoolIcon =
                               announcement.school === "ESE"
@@ -2371,6 +2887,11 @@
                                       {schoolName}
                                     </span>
                                     <span>
+                                      {hasLimit
+                                        ? `Inscritos ${registrationsCount}/${announcement.max_registrations}`
+                                        : `Inscritos ${registrationsCount} (sem limite)`}
+                                    </span>
+                                    <span>
                                       Publicado em{" "}
                                       {formatDate(announcement.created_at)}
                                     </span>
@@ -2381,6 +2902,32 @@
                                         : `Expira em ${formatDate(announcement.expires_at)}`}
                                     </span>
                                   </div>
+
+                                  {isAluno ? (
+                                    <div>
+                                      <button
+                                        type="button"
+                                        disabled={!canRegister || isBusy}
+                                        onClick={() => handleToggleRegistration(announcement)}
+                                        className={
+                                          "inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-semibold transition " +
+                                          (canRegister && !isBusy
+                                            ? isRegistered
+                                              ? "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                                              : "bg-accent-600 text-white hover:bg-accent-500"
+                                            : "cursor-not-allowed bg-slate-100 text-slate-400")
+                                        }
+                                      >
+                                        {isBusy
+                                          ? "A processar..."
+                                          : isRegistered
+                                            ? "Desinscrever"
+                                            : isFull
+                                              ? "Limite atingido"
+                                              : "Inscrever"}
+                                      </button>
+                                    </div>
+                                  ) : null}
                                 </div>
                               </article>
                             );

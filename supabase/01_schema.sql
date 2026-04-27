@@ -74,8 +74,35 @@ create table if not exists public.announcements (
   school public.school_code not null,
   category public.announcement_category not null,
   expires_at date not null,
+  max_registrations integer check (max_registrations is null or max_registrations > 0),
   created_at timestamptz not null default timezone('utc', now()),
   author_id uuid not null references public.profiles (id) on delete restrict
+);
+
+alter table public.announcements
+  add column if not exists max_registrations integer;
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'announcements_max_registrations_check'
+      and conrelid = 'public.announcements'::regclass
+  ) then
+    alter table public.announcements
+      add constraint announcements_max_registrations_check
+      check (max_registrations is null or max_registrations > 0);
+  end if;
+end
+$$;
+
+create table if not exists public.announcement_registrations (
+  id uuid primary key default gen_random_uuid(),
+  announcement_id uuid not null references public.announcements (id) on delete cascade,
+  student_id uuid not null references public.profiles (id) on delete cascade,
+  created_at timestamptz not null default timezone('utc', now()),
+  unique (announcement_id, student_id)
 );
 
 -- Keep profile timestamps updated
@@ -147,6 +174,104 @@ $$;
 revoke all on function public.resolve_login_email(text) from public;
 grant execute on function public.resolve_login_email(text) to anon, authenticated;
 
+create or replace function public.register_announcement(p_announcement_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  current_profile public.profiles%rowtype;
+  announcement_row public.announcements%rowtype;
+  registrations_count integer;
+  already_registered boolean;
+begin
+  if auth.uid() is null then
+    raise exception 'Utilizador não autenticado.';
+  end if;
+
+  select *
+  into current_profile
+  from public.profiles
+  where id = auth.uid();
+
+  if not found then
+    raise exception 'Perfil do utilizador não encontrado.';
+  end if;
+
+  if current_profile.role <> 'Aluno'::public.user_role then
+    raise exception 'Apenas alunos podem inscrever-se.';
+  end if;
+
+  select *
+  into announcement_row
+  from public.announcements
+  where id = p_announcement_id
+  for update;
+
+  if not found then
+    raise exception 'Aviso não encontrado.';
+  end if;
+
+  if announcement_row.school <> current_profile.school then
+    raise exception 'Só pode inscrever-se em avisos da sua escola.';
+  end if;
+
+  if announcement_row.expires_at < current_date then
+    raise exception 'Este aviso já expirou.';
+  end if;
+
+  select exists (
+    select 1
+    from public.announcement_registrations
+    where announcement_id = p_announcement_id
+      and student_id = auth.uid()
+  )
+  into already_registered;
+
+  if already_registered then
+    return;
+  end if;
+
+  if announcement_row.max_registrations is not null then
+    select count(*)
+    into registrations_count
+    from public.announcement_registrations
+    where announcement_id = p_announcement_id;
+
+    if registrations_count >= announcement_row.max_registrations then
+      raise exception 'Limite máximo de inscrições atingido.';
+    end if;
+  end if;
+
+  insert into public.announcement_registrations (announcement_id, student_id)
+  values (p_announcement_id, auth.uid());
+end;
+$$;
+
+create or replace function public.unregister_announcement(p_announcement_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is null then
+    raise exception 'Utilizador não autenticado.';
+  end if;
+
+  delete from public.announcement_registrations
+  where announcement_id = p_announcement_id
+    and student_id = auth.uid();
+end;
+$$;
+
+revoke all on function public.register_announcement(uuid) from public;
+grant execute on function public.register_announcement(uuid) to authenticated;
+
+revoke all on function public.unregister_announcement(uuid) from public;
+grant execute on function public.unregister_announcement(uuid) to authenticated;
+
 do $$
 begin
   if not exists (
@@ -175,6 +300,12 @@ create index if not exists idx_announcements_expires_at
 create index if not exists idx_announcements_author_id
   on public.announcements (author_id);
 
+create index if not exists idx_announcement_registrations_announcement_id
+  on public.announcement_registrations (announcement_id);
+
+create index if not exists idx_announcement_registrations_student_id
+  on public.announcement_registrations (student_id);
+
 -- Needed to stream changes in Supabase Realtime.
 do $$
 begin
@@ -186,6 +317,16 @@ begin
       and tablename = 'announcements'
   ) then
     alter publication supabase_realtime add table public.announcements;
+  end if;
+
+  if not exists (
+    select 1
+    from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'announcement_registrations'
+  ) then
+    alter publication supabase_realtime add table public.announcement_registrations;
   end if;
 end
 $$;
