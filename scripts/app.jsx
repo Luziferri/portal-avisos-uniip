@@ -83,6 +83,27 @@
           year: "numeric",
         }).format(new Date(value));
 
+      const formatTime = (value) => (value ? String(value).slice(0, 5) : "");
+
+      const formatEventTimeRange = (startTime, endTime) => {
+        const start = formatTime(startTime);
+        const end = formatTime(endTime);
+
+        if (start && end) {
+          return `${start} - ${end}`;
+        }
+
+        if (start) {
+          return `A partir das ${start}`;
+        }
+
+        if (end) {
+          return `Até ${end}`;
+        }
+
+        return "";
+      };
+
       const formatMonthYear = (value) =>
         new Intl.DateTimeFormat("pt-PT", {
           month: "long",
@@ -297,6 +318,8 @@ const MapPin = (props) => (
           school: "ESE",
           category: "Evento",
           expiresAt: "",
+          startTime: "",
+          endTime: "",
           maxRegistrations: "",
         });
         const [calendarMonth, setCalendarMonth] = useState(() => {
@@ -342,7 +365,7 @@ const MapPin = (props) => (
             const query = supabaseClient
               .from("announcements")
               .select(
-                "id, title, description, school, category, created_at, expires_at, max_registrations",
+                "id, title, description, school, category, created_at, expires_at, start_time, end_time, max_registrations",
               )
               .order("created_at", { ascending: false });
 
@@ -1096,7 +1119,20 @@ if (categoryFromHash) {
             !announcementForm.description.trim() ||
             !announcementForm.expiresAt
           ) {
+            setPublishError("Preenche todos os campos obrigatórios.");
             return;
+          }
+
+          if (announcementForm.startTime || announcementForm.endTime) {
+            if (!announcementForm.startTime || !announcementForm.endTime) {
+              setPublishError("Indica a hora de início e de fim.");
+              return;
+            }
+
+            if (announcementForm.endTime <= announcementForm.startTime) {
+              setPublishError("A hora de fim tem de ser depois da hora de início.");
+              return;
+            }
           }
 
           const maxRegistrationsValue = announcementForm.maxRegistrations.trim();
@@ -1122,6 +1158,8 @@ if (categoryFromHash) {
                 school: announcementForm.school,
                 category: announcementForm.category,
                 expires_at: announcementForm.expiresAt,
+                start_time: announcementForm.startTime || null,
+                end_time: announcementForm.endTime || null,
                 max_registrations: parsedMaxRegistrations,
                 author_id: session.id,
               });
@@ -1134,6 +1172,8 @@ if (categoryFromHash) {
               school: announcementForm.school,
               category: announcementForm.category,
               expiresAt: "",
+              startTime: "",
+              endTime: "",
               maxRegistrations: "",
             });
             setPublishError("");
@@ -1343,16 +1383,22 @@ if (categoryFromHash) {
           return announcements
             .filter(
               (announcement) =>
-                announcement.category === "Evento" && announcement.expires_at,
+                announcement.category === "Evento",
             )
             .map((announcement) => {
-              const dateKey = announcement.expires_at.slice(0, 10);
+              const dateString = announcement.expires_at || announcement.created_at;
+              const dateKey = dateString.slice(0, 10);
               const [year, month, day] = dateKey.split("-").map(Number);
+              const timeRange = formatEventTimeRange(
+                announcement.start_time,
+                announcement.end_time,
+              );
 
               return {
                 ...announcement,
                 eventDate: new Date(year, month - 1, day),
                 dateKey,
+                timeRange,
               };
             })
             .sort((a, b) => a.eventDate - b.eventDate);
@@ -1415,7 +1461,7 @@ if (categoryFromHash) {
             <div
               className={
                 isDark
-                  ? "min-h-screen bg-[#0f141c] text-slate-100"
+                  ? "min-h-screen bg-[#252931] text-slate-100"
                   : "min-h-screen bg-[linear-gradient(180deg,#eef2f7_0%,#f7f9fc_45%,#eff3f8_100%)] text-ink-950"
               }
             >
@@ -1626,7 +1672,7 @@ if (categoryFromHash) {
           <div
             className={
               isDark
-                ? "min-h-screen bg-[#0f141c] text-slate-100"
+                ? "min-h-screen bg-[#252931] text-slate-100"
                 : "min-h-screen bg-[#f2f4f7] text-ink-950"
             }
           >
@@ -1721,18 +1767,15 @@ if (categoryFromHash) {
 
       <main className="space-y-4 pb-28">
   {currentView === "calendar" ? (
-                    <section className="panel flex flex-col gap-6 rounded-xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-                      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <section className="panel space-y-5 rounded-xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8" id="calendar-page">
+                      <div className="flex items-center justify-between">
                         <div>
-                          <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+                          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
                             Agenda
                           </p>
                           <h2 className="mt-1 text-2xl font-bold text-ink-950">
                             Calendário de eventos
                           </h2>
-                          <p className="mt-1 text-sm text-slate-500">
-                            Vista separada apenas para os eventos do portal.
-                          </p>
                         </div>
                         <button
                           type="button"
@@ -1743,71 +1786,45 @@ if (categoryFromHash) {
                         </button>
                       </div>
 
-                      <section className="panel space-y-5 rounded-xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                          <div>
-                            <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
-                              Agenda
-                            </p>
-                            <h3 className="mt-1 text-2xl font-bold text-ink-950">
-                              Calendário de eventos
-                            </h3>
-                            <p className="mt-1 text-sm text-slate-500">
-                              {monthEvents.length > 0
-                                ? `${monthEvents.length} evento${monthEvents.length === 1 ? "" : "s"} neste mês`
-                                : "Sem eventos para este mês. Publica avisos com categoria Evento para começar."}
-                            </p>
-                          </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => shiftCalendarMonth(-1)}
+                          className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-ink-700 transition hover:bg-slate-50"
+                        >
+                          Anterior
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const today = new Date();
+                            setCalendarMonth(
+                              new Date(
+                                today.getFullYear(),
+                                today.getMonth(),
+                                1,
+                              ),
+                            );
+                          }}
+                          className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-ink-700 transition hover:bg-slate-50"
+                        >
+                          Hoje
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => shiftCalendarMonth(1)}
+                          className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-ink-700 transition hover:bg-slate-50"
+                        >
+                          Seguinte
+                        </button>
+                      </div>
 
-                          <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={() => shiftCalendarMonth(-1)}
-                              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-ink-700 transition hover:bg-slate-50"
-                            >
-                              Anterior
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const today = new Date();
-                                setCalendarMonth(
-                                  new Date(
-                                    today.getFullYear(),
-                                    today.getMonth(),
-                                    1,
-                                  ),
-                                );
-                              }}
-                              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-ink-700 transition hover:bg-slate-50"
-                            >
-                              Hoje
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => shiftCalendarMonth(1)}
-                              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-ink-700 transition hover:bg-slate-50"
-                            >
-                              Seguinte
-                            </button>
-                          </div>
-                        </div>
-
-                        <div className="grid gap-5 xl:grid-cols-[1.35fr_0.9fr]">
+                      <div className="grid gap-5 xl:grid-cols-[1.35fr_0.9fr]">
                           <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-                            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-4 sm:px-5">
-                              <div>
-                                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                                  Mês atual
-                                </p>
-                                <h4 className="text-lg font-semibold text-ink-950">
-                                  {formatMonthYear(calendarMonth).replace(/^./, (letter) => letter.toUpperCase())}
-                                </h4>
-                              </div>
-                              <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-600">
-                                <CalendarDays className="h-4 w-4" />
-                                Vista mensal
-                              </div>
+                            <div className="border-b border-slate-200 px-4 py-4 sm:px-5">
+                              <h4 className="text-lg font-semibold text-ink-950">
+                                {formatMonthYear(calendarMonth).replace(/^./, (letter) => letter.toUpperCase())}
+                              </h4>
                             </div>
 
                             <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50 text-center text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
@@ -1862,6 +1879,11 @@ if (categoryFromHash) {
                                             className="rounded-md border border-sky-100 bg-sky-50 px-2 py-1.5 text-xs font-semibold text-sky-800"
                                           >
                                             <p className="leading-4">{event.title}</p>
+                                            {event.timeRange ? (
+                                              <p className="mt-0.5 text-[10px] font-medium text-sky-700">
+                                                {event.timeRange}
+                                              </p>
+                                            ) : null}
                                           </div>
                                         ))
                                       ) : (
@@ -1885,14 +1907,9 @@ if (categoryFromHash) {
                           <div className="space-y-4">
                             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                               <div className="flex items-center justify-between gap-3">
-                                <div>
-                                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                                    Próximos eventos
-                                  </p>
-                                  <h4 className="mt-1 text-lg font-semibold text-ink-950">
-                                    Agenda do mês
-                                  </h4>
-                                </div>
+                                <h4 className="text-lg font-semibold text-ink-950">
+                                  Próximos eventos
+                                </h4>
                                 <Sparkles className="h-5 w-5 text-slate-500" />
                               </div>
 
@@ -1911,6 +1928,11 @@ if (categoryFromHash) {
                                           <p className="mt-1 text-xs text-slate-500">
                                             {schoolConfig[event.school]?.name || event.school}
                                           </p>
+                                          {event.timeRange ? (
+                                            <p className="mt-1 text-xs font-semibold text-sky-700">
+                                              {event.timeRange}
+                                            </p>
+                                          ) : null}
                                         </div>
                                         <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
                                           {event.eventDate.toLocaleDateString("pt-PT", {
@@ -1933,10 +1955,7 @@ if (categoryFromHash) {
                             </div>
 
                             <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                                Legenda
-                              </p>
-                              <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-slate-600">
+                              <div className="flex flex-wrap gap-2 text-xs font-semibold text-slate-600">
                                 <span className="rounded-full bg-accent-50 px-3 py-1 text-accent-600">
                                   Hoje
                                 </span>
@@ -1951,7 +1970,6 @@ if (categoryFromHash) {
                           </div>
                         </div>
                       </section>
-                    </section>
                   ) : currentView === "account" ? (
                     <section className="panel flex flex-col gap-6 rounded-xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
                       {/* Cabeçalho */}
@@ -2630,6 +2648,42 @@ if (categoryFromHash) {
                                 </select>
                               </label>
 
+                              <div className="grid gap-4 sm:grid-cols-2">
+                                <label className="block space-y-2">
+                                  <span className="text-sm font-medium text-ink-700">
+                                    Hora de início
+                                  </span>
+                                  <input
+                                    type="time"
+                                    value={announcementForm.startTime}
+                                    onChange={(event) =>
+                                      setAnnouncementForm((current) => ({
+                                        ...current,
+                                        startTime: event.target.value,
+                                      }))
+                                    }
+                                    className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-ink-900"
+                                  />
+                                </label>
+
+                                <label className="block space-y-2">
+                                  <span className="text-sm font-medium text-ink-700">
+                                    Hora de fim
+                                  </span>
+                                  <input
+                                    type="time"
+                                    value={announcementForm.endTime}
+                                    onChange={(event) =>
+                                      setAnnouncementForm((current) => ({
+                                        ...current,
+                                        endTime: event.target.value,
+                                      }))
+                                    }
+                                    className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-ink-900"
+                                  />
+                                </label>
+                              </div>
+
                               <label className="block space-y-2">
                                 <span className="text-sm font-medium text-ink-700">
                                   Data de expiração
@@ -2819,8 +2873,23 @@ if (categoryFromHash) {
                                         </div>
                                         <div className="flex items-center gap-1.5">
                                           <CalendarDays className="h-4 w-4 text-slate-400" />
-                                          <span>Até {formatDate(announcement.expires_at)}</span>
+                                          <span>
+                                            {announcement.category === "Evento"
+                                              ? `Dia ${formatDate(announcement.expires_at)}`
+                                              : `Até ${formatDate(announcement.expires_at)}`}
+                                          </span>
                                         </div>
+                                        {announcement.start_time && announcement.end_time ? (
+                                          <div className="flex items-center gap-1.5">
+                                            <Sparkles className="h-4 w-4 text-slate-400" />
+                                            <span>
+                                              {formatEventTimeRange(
+                                                announcement.start_time,
+                                                announcement.end_time,
+                                              )}
+                                            </span>
+                                          </div>
+                                        ) : null}
                                       </div>
 
                                       {isAluno ? (

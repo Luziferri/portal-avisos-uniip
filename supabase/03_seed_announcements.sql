@@ -2,13 +2,15 @@
 -- Run after 01_schema.sql and 02_rls.sql.
 -- This script assumes at least one Professor exists per school in public.profiles.
 
-insert into public.announcements (title, description, school, category, expires_at, author_id)
+insert into public.announcements (title, description, school, category, expires_at, start_time, end_time, author_id)
 select
   'Sessão de Boas-Vindas para Novos Alunos',
   'A coordenação da ESE convida todos os novos estudantes para uma sessão de integração com informações úteis sobre horários, serviços e apoio académico.',
   'ESE'::public.school_code,
   'Evento'::public.announcement_category,
   date '2026-05-03',
+  time '09:30',
+  time '11:00',
   p.id
 from public.profiles p
 where p.role = 'Professor'::public.user_role and p.school = 'ESE'::public.school_code
@@ -38,13 +40,15 @@ from public.profiles p
 where p.role = 'Professor'::public.user_role and p.school = 'EST'::public.school_code
 limit 1;
 
-insert into public.announcements (title, description, school, category, expires_at, author_id)
+insert into public.announcements (title, description, school, category, expires_at, start_time, end_time, author_id)
 select
   'Feira de Projetos e Startups da ESCE',
   'Evento aberto à comunidade com apresentação de projetos finais, networking e sessões curtas com empresas parceiras.',
   'ESCE'::public.school_code,
   'Evento'::public.announcement_category,
   date '2026-05-14',
+  time '14:00',
+  time '17:30',
   p.id
 from public.profiles p
 where p.role = 'Professor'::public.user_role and p.school = 'ESCE'::public.school_code

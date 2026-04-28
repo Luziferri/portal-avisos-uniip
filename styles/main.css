@@ -52,7 +52,7 @@
       }
 
       html.theme-dark [class*="bg-white"] {
-        background-color: #151b24 !important;
+        background-color: #303540 !important;
       }
 
       html.theme-dark [class*="bg-slate-50"] {
@@ -60,15 +60,16 @@
       }
 
       html.theme-dark [class*="bg-slate-100"] {
-        background-color: #18202c !important;
+        background-color: #59606ba8 !important;
       }
 
       html.theme-dark [class*="border-slate-200"] {
         border-color: #273041 !important;
+     
       }
 
       html.theme-dark [class*="border-slate-300"] {
-        border-color: #344055 !important;
+        border-color: #8c838264 !important;
       }
 
       html.theme-dark .text-ink-950,

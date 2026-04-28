@@ -74,10 +74,18 @@ create table if not exists public.announcements (
   school public.school_code not null,
   category public.announcement_category not null,
   expires_at date not null,
+  start_time time,
+  end_time time,
   max_registrations integer check (max_registrations is null or max_registrations > 0),
   created_at timestamptz not null default timezone('utc', now()),
   author_id uuid not null references public.profiles (id) on delete restrict
 );
+
+alter table public.announcements
+  add column if not exists start_time time;
+
+alter table public.announcements
+  add column if not exists end_time time;
 
 alter table public.announcements
   add column if not exists max_registrations integer;
