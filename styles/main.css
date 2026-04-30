@@ -134,4 +134,85 @@
       html.theme-dark .header-search {
         box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
       }
+
+      /* View Transitions */
+      @view-transition {
+        navigation: auto;
+      }
+
+      ::view-transition-old(root) {
+        animation: fade-out 350ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+      }
+
+      ::view-transition-new(root) {
+        animation: fade-in 350ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+      }
+
+      @keyframes fade-in {
+        from {
+          opacity: 0;
+          transform: translateY(12px) scale(0.98);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0) scale(1);
+        }
+      }
+
+      @keyframes fade-out {
+        from {
+          opacity: 1;
+          transform: translateY(0) scale(1);
+        }
+        to {
+          opacity: 0;
+          transform: translateY(-12px) scale(0.98);
+        }
+      }
+
+      /* Animação para cards de categorias */
+      .category-card {
+        animation: categoryCardEnter 500ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        opacity: 0;
+      }
+
+      @keyframes categoryCardEnter {
+        from {
+          opacity: 0;
+          transform: translateY(20px) scale(0.95);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0) scale(1);
+        }
+      }
+
+      .category-card:nth-child(1) { animation-delay: 0ms; }
+      .category-card:nth-child(2) { animation-delay: 60ms; }
+      .category-card:nth-child(3) { animation-delay: 120ms; }
+      .category-card:nth-child(4) { animation-delay: 180ms; }
+      .category-card:nth-child(5) { animation-delay: 240ms; }
+      .category-card:nth-child(6) { animation-delay: 300ms; }
+      .category-card:nth-child(7) { animation-delay: 360ms; }
+      .category-card:nth-child(8) { animation-delay: 420ms; }
+
+      /* Animação de saída para cards de categorias */
+      .category-card-exit {
+        animation: categoryCardExit 400ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+      }
+
+      @keyframes categoryCardExit {
+        from {
+          opacity: 1;
+          transform: translateY(0) scale(1);
+        }
+        to {
+          opacity: 0;
+          transform: translateY(20px) scale(0.95);
+        }
+      }
+
+      html.theme-dark .header-search {
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+      }
     

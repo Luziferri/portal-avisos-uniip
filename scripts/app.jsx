@@ -357,6 +357,9 @@ const MapPin = (props) => (
         const [announcementRegistrations, setAnnouncementRegistrations] = useState({});
         const [activeSection, setActiveSection] = useState("feed");
         const [currentView, setCurrentView] = useState("dashboard");
+        const [exitingCategories, setExitingCategories] = useState([]);
+        const [displayedCategories, setDisplayedCategories] = useState([]);
+        const prevCategoriesRef = useRef([]);
         const announcementsRequestRef = useRef(0);
 
         const isDark = themeMode === "dark";
@@ -1576,6 +1579,33 @@ if (categoryFromHash) {
           return categories;
         }, [announcements, selectedSchool]);
 
+        // Controlar animações de entrada e saída das categorias
+        useEffect(() => {
+          const currentCategories = new Set(categoriesBySchool);
+          const prevCategories = new Set(displayedCategories.filter(c => !exitingCategories.includes(c)));
+          
+          // Categorias que estão a sair
+          const toExit = displayedCategories.filter(c => !currentCategories.has(c) && !exitingCategories.includes(c));
+          
+          if (toExit.length > 0) {
+            setExitingCategories(prev => [...prev, ...toExit]);
+            
+            // Após a animação de saída, remover da lista
+            const timer = setTimeout(() => {
+              setExitingCategories(prev => prev.filter(c => !toExit.includes(c)));
+              setDisplayedCategories(prev => prev.filter(c => !toExit.includes(c)));
+            }, 400); // Duração da animação de saída
+            
+            return () => clearTimeout(timer);
+          }
+          
+          // Categorias que estão a entrar
+          const toEnter = categoriesBySchool.filter(c => !displayedCategories.includes(c));
+          if (toEnter.length > 0 || displayedCategories.length === 0) {
+            setDisplayedCategories(categoriesBySchool);
+          }
+        }, [categoriesBySchool]);
+
         const countsBySchoolAndCategory = useMemo(() => {
           const filtered = selectedSchool === "Todas"
             ? announcements
@@ -2559,19 +2589,23 @@ if (categoryFromHash) {
                             </div>
                           </div>
 
-                          {/* Grelha de Categorias (Atualizada com hover mais suave) */}
-                          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                            {categoriesBySchool.length > 0 ? (
-                              categoriesBySchool.map((category) => {
-                                const totalForCategory = countsBySchoolAndCategory[category] || 0;
+                           {/* Grelha de Categorias (Com animação de entrada e saída) */}
+                           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                             {displayedCategories.length > 0 ? (
+                               displayedCategories.map((category, index) => {
+                                 const totalForCategory = countsBySchoolAndCategory[category] || 0;
+                                 const isExiting = exitingCategories.includes(category);
 
-                                return (
-                                  <button
-                                    key={category}
-                                    type="button"
-                                    onClick={() => navigateToCategoryPage(category)}
-                                    className="group flex flex-col justify-between rounded-xl border border-slate-200/80 bg-white p-5 text-left shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-slate-300 hover:shadow-md"
-                                  >
+                                 return (
+                                   <button
+                                     key={category}
+                                     type="button"
+                                     onClick={() => navigateToCategoryPage(category)}
+                                     className={`group flex flex-col justify-between rounded-xl border border-slate-200/80 bg-white p-5 text-left shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-slate-300 hover:shadow-md ${
+                                       isExiting ? 'category-card-exit' : 'category-card'
+                                     }`}
+                                     style={{ animationDelay: isExiting ? '0ms' : `${index * 60}ms` }}
+                                   >
                                     <div>
                                       <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400 transition-colors group-hover:text-slate-500">
                                         Categoria
@@ -2584,14 +2618,23 @@ if (categoryFromHash) {
                                       {totalForCategory} aviso{totalForCategory === 1 ? "" : "s"}
                                     </p>
                                   </button>
-                                );
-                              })
-                            ) : (
-                              <p className="col-span-full py-8 text-center text-sm text-slate-500">
-                                Selecione uma escola para ver as categorias disponíveis.
-                              </p>
-                            )}
-                          </div>
+                                 );
+                               })
+                             ) : (
+                               <p className="col-span-full py-8 text-center text-sm text-slate-500">
+                                 Selecione uma escola para ver as categorias disponíveis.
+                               </p>
+                             )}
+                           </div>
+
+                           {/* Categorias a sair (invisíveis mas no DOM para animar) */}
+                           {exitingCategories.length > 0 && (
+                             <div className="hidden">
+                               {exitingCategories.map(category => (
+                                 <div key={`exit-${category}`} className="category-card-exit" />
+                               ))}
+                             </div>
+                           )}
                         </section>
                       ) : null}
 
