@@ -105,7 +105,10 @@ end;
 $$;
 
 -- Modify register_announcement to check for schedule conflicts
-create or replace function public.register_announcement(p_announcement_id uuid)
+create or replace function public.register_announcement(
+  p_announcement_id uuid,
+  p_force boolean default false
+)
 returns void
 language plpgsql
 security definer
@@ -176,8 +179,8 @@ begin
     end if;
   end if;
 
-  -- Check for schedule conflicts if event has time information
-  if announcement_row.start_time is not null and announcement_row.end_time is not null then
+  -- Only check conflicts if NOT forcing registration
+  if not p_force and announcement_row.start_time is not null and announcement_row.end_time is not null then
     select * into conflict_result
     from public.check_announcement_conflict(p_announcement_id);
 
@@ -255,3 +258,83 @@ grant execute on function public.register_announcement(uuid) to authenticated;
 
 revoke all on function public.unregister_announcement(uuid) from public;
 grant execute on function public.unregister_announcement(uuid) to authenticated;
+
+-- Function for professor to delete own announcement
+create or replace function public.delete_announcement(p_announcement_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  announcement_row public.announcements%rowtype;
+begin
+  if auth.uid() is null then
+    raise exception 'Utilizador não autenticado.';
+  end if;
+
+  select * into announcement_row from public.announcements where id = p_announcement_id;
+
+  if not found then
+    raise exception 'Aviso não encontrado.';
+  end if;
+
+  if announcement_row.author_id <> auth.uid() then
+    raise exception 'Apenas o autor pode remover este aviso.';
+  end if;
+
+  -- Delete registrations first (cascade should handle it, but be explicit)
+  delete from public.announcement_registrations where announcement_id = p_announcement_id;
+
+  -- Delete the announcement
+  delete from public.announcements where id = p_announcement_id;
+end;
+$$;
+
+revoke all on function public.delete_announcement(uuid) from public;
+grant execute on function public.delete_announcement(uuid) to authenticated;
+
+-- Function for professor to see registrations for their own announcements
+create or replace function public.get_announcement_registrations(p_announcement_id uuid)
+returns table (
+  student_id uuid,
+  full_name text,
+  username text,
+  registered_at timestamptz
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  announcement_row public.announcements%rowtype;
+begin
+  if auth.uid() is null then
+    raise exception 'Utilizador não autenticado.';
+  end if;
+
+  select * into announcement_row from public.announcements where id = p_announcement_id;
+
+  if not found then
+    raise exception 'Aviso não encontrado.';
+  end if;
+
+  if announcement_row.author_id <> auth.uid() then
+    raise exception 'Apenas o autor pode ver as inscrições.';
+  end if;
+
+  return query
+    select
+      ar.student_id,
+      p.full_name,
+      p.username,
+      ar.created_at as registered_at
+    from public.announcement_registrations ar
+    join public.profiles p on p.id = ar.student_id
+    where ar.announcement_id = p_announcement_id
+    order by ar.created_at desc;
+end;
+$$;
+
+revoke all on function public.get_announcement_registrations(uuid) from public;
+grant execute on function public.get_announcement_registrations(uuid) to authenticated;

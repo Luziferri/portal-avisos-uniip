@@ -353,6 +353,8 @@ const MapPin = (props) => (
         const [pendingRegistration, setPendingRegistration] = useState(null);
         const [weeklySchedule, setWeeklySchedule] = useState([]);
         const [weeklyAnnouncements, setWeeklyAnnouncements] = useState([]);
+        const [expandedRegistration, setExpandedRegistration] = useState(null);
+        const [announcementRegistrations, setAnnouncementRegistrations] = useState({});
         const [activeSection, setActiveSection] = useState("feed");
         const [currentView, setCurrentView] = useState("dashboard");
         const announcementsRequestRef = useRef(0);
@@ -362,6 +364,12 @@ const MapPin = (props) => (
         const supabaseReady = Boolean(supabaseClient);
         const isSecretaria = currentAccount?.role === "Secretaria";
         const isAluno = currentAccount?.role === "Aluno";
+        const isProfessor = currentAccount?.role === "Professor";
+
+        const professorAnnouncements = useMemo(() => {
+          if (!isProfessor || !session) return [];
+          return announcements.filter((a) => a.author_id === session.id);
+        }, [announcements, isProfessor, session]);
 
         const loadAnnouncements = async () => {
           if (!supabaseClient) return [];
@@ -369,7 +377,7 @@ const MapPin = (props) => (
             const query = supabaseClient
               .from("announcements")
               .select(
-                "id, title, description, school, category, created_at, expires_at, start_time, end_time, max_registrations",
+                "id, title, description, school, category, created_at, expires_at, start_time, end_time, max_registrations, author_id",
               )
               .order("created_at", { ascending: false });
 
@@ -459,6 +467,37 @@ const MapPin = (props) => (
             }
           } catch (err) {
             console.error("Load weekly data error:", err);
+          }
+        };
+
+        const loadProfessorRegistrations = async (profAnnouncements) => {
+          if (!supabaseClient || !profAnnouncements.length) return;
+
+          try {
+            const registrationsMap = {};
+            for (const announcement of profAnnouncements) {
+              const { data: regData, error: regError } = await supabaseClient
+                .rpc("get_announcement_registrations", {
+                  p_announcement_id: announcement.id,
+                });
+
+              console.log("Registration RPC result for", announcement.id, ":", regData, regError);
+
+              if (!regError && regData) {
+                registrationsMap[announcement.id] = regData.map((r) => ({
+                  student_id: r.student_id,
+                  full_name: r.full_name || "Estudante",
+                  username: r.username || "",
+                  registered_at: r.registered_at,
+                }));
+              } else if (regError) {
+                console.error("RPC error for", announcement.id, ":", regError);
+              }
+            }
+            console.log("All registrations loaded:", registrationsMap);
+            setAnnouncementRegistrations(registrationsMap);
+          } catch (err) {
+            console.error("Load professor registrations error:", err);
           }
         };
 
@@ -723,6 +762,12 @@ const MapPin = (props) => (
             };
           }
         }, [supabaseClient, currentView, session]);
+
+        useEffect(() => {
+          if (isProfessor && professorAnnouncements.length > 0) {
+            loadProfessorRegistrations(professorAnnouncements);
+          }
+        }, [professorAnnouncements, isProfessor]);
 
         useEffect(() => {
           try {
@@ -1223,6 +1268,28 @@ if (categoryFromHash) {
             setPublishError("");
           } catch (err) {
             setPublishError(err.message || "Erro ao publicar aviso.");
+          }
+        };
+
+        const handleDeleteAnnouncement = async (announcementId) => {
+          if (!session || session.role !== "Professor") {
+            setPublishError("Apenas professores podem remover avisos.");
+            return;
+          }
+
+          try {
+            const { error } = await supabaseClient.rpc("delete_announcement", {
+              p_announcement_id: announcementId,
+            });
+
+            if (error) throw error;
+
+            setPublishError("Aviso removido com sucesso.");
+            setTimeout(() => setPublishError(""), 3000);
+            await refreshAnnouncements();
+          } catch (err) {
+            setPublishError(err.message || "Erro ao remover aviso.");
+            setTimeout(() => setPublishError(""), 3000);
           }
         };
 
@@ -1863,7 +1930,7 @@ if (categoryFromHash) {
         <button
           type="button"
           onClick={handleLogout}
-          className="flex h-8 w-8 items-center justify-center rounded-full text-slate-500 transition-all hover:bg-coral-50 hover:text-coral-600 hover:shadow-sm"
+          className="flex h-8 w-8 items-center justify-center rounded-full text-slate-500 transition-all hover:bg-red-100 hover:text-red-700 hover:shadow-sm dark:hover:bg-red-900/30 dark:hover:text-red-400"
           title="Terminar Sessão"
         >
           <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2446,7 +2513,7 @@ if (categoryFromHash) {
                     </section>
                   ) : (
                     <>
-                  {currentView === "dashboard" ? (
+                      {currentView === "dashboard" && currentAccount.role !== "Professor" ? (
                         <section className="scroll-mt-24 space-y-6 pt-2" id="filtros">
                           
                           {/* Barra de Pesquisa e Filtros (Agora flutuante e mais limpa) */}
@@ -3007,6 +3074,159 @@ if (categoryFromHash) {
                               </div>
                             </div>
                           </form>
+
+                          {professorAnnouncements.length > 0 && (
+                            <div className="mt-6 grid gap-4 lg:grid-cols-2">
+                              <div className="space-y-3">
+                                <h3 className="text-sm font-semibold text-emerald-700">
+                                  Avisos Ativos ({professorAnnouncements.filter((a) => !isExpired(a.expires_at)).length})
+                                </h3>
+                                <div className="flex flex-col gap-2">
+                                  {professorAnnouncements
+                                    .filter((a) => !isExpired(a.expires_at))
+                                    .map((a) => {
+                                      const regs = announcementRegistrations[a.id] || [];
+                                      const regCount = a.registrations_count || 0;
+                                      const isExpanded = expandedRegistration === a.id;
+
+                                      return (
+                                        <div
+                                          key={a.id}
+                                          className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50"
+                                        >
+                                          <div className="flex items-center justify-between gap-3 px-3 py-2">
+                                            <div className="min-w-0 flex-1">
+                                              <p className="truncate text-sm font-medium text-ink-950">
+                                                {a.title}
+                                              </p>
+                                              <p className="text-xs text-slate-500">
+                                                {a.category} · {a.expires_at}
+                                              </p>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                              <button
+                                                onClick={() => setExpandedRegistration(isExpanded ? null : a.id)}
+                                                className="shrink-0 rounded-md bg-ink-900 px-2 py-1 text-xs font-semibold text-white transition hover:bg-ink-800 dark:bg-slate-600 dark:hover:bg-slate-500"
+                                              >
+                                                {regCount} inscrito{regCount === 1 ? "" : "s"}
+                                              </button>
+                                              <button
+                                                onClick={() => handleDeleteAnnouncement(a.id)}
+                                                className="shrink-0 rounded-md border border-coral-200 bg-white px-3 py-1.5 text-xs font-semibold text-coral-600 transition hover:bg-coral-50 dark:border-coral-800 dark:bg-slate-700 dark:text-coral-400 dark:hover:bg-slate-600"
+                                              >
+                                                Remover
+                                              </button>
+                                            </div>
+                                          </div>
+
+                                          {isExpanded && (
+                                            <div className="border-t border-slate-200 px-3 py-2">
+                                              {regs.length > 0 ? (
+                                                <div className="flex flex-col gap-1">
+                                                  {regs.map((reg) => (
+                                                    <div
+                                                      key={reg.student_id}
+                                                      className="flex items-center justify-between rounded-md bg-white px-3 py-1.5"
+                                                    >
+                                                      <div className="min-w-0">
+                                                        <p className="text-sm font-medium text-ink-950">
+                                                          {reg.full_name}
+                                                        </p>
+                                                        <p className="truncate text-xs text-slate-500">
+                                                          {reg.username}
+                                                        </p>
+                                                      </div>
+                                                      <span className="shrink-0 text-xs text-slate-400">
+                                                        {new Date(reg.registered_at).toLocaleDateString("pt-PT")}
+                                                      </span>
+                                                    </div>
+                                                  ))}
+                                                </div>
+                                              ) : (
+                                                <p className="text-xs text-slate-400 py-1">A carregar inscritos...</p>
+                                              )}
+                                            </div>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                </div>
+                              </div>
+
+                              <div className="space-y-3">
+                                <h3 className="text-sm font-semibold text-slate-500">
+                                  Avisos Expirados ({professorAnnouncements.filter((a) => isExpired(a.expires_at)).length})
+                                </h3>
+                                <div className="flex flex-col gap-2">
+                                  {professorAnnouncements
+                                    .filter((a) => isExpired(a.expires_at))
+                                    .map((a) => {
+                                      const regs = announcementRegistrations[a.id] || [];
+                                      const regCount = a.registrations_count || 0;
+                                      const isExpanded = expandedRegistration === a.id;
+
+                                      return (
+                                        <div
+                                          key={a.id}
+                                          className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50 opacity-60"
+                                        >
+                                          <div className="flex items-center justify-between gap-3 px-3 py-2">
+                                            <div className="min-w-0 flex-1">
+                                              <p className="truncate text-sm font-medium text-ink-950">
+                                                {a.title}
+                                              </p>
+                                              <p className="text-xs text-slate-500">
+                                                {a.category} · {a.expires_at}
+                                              </p>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                              <button
+                                                onClick={() => setExpandedRegistration(isExpanded ? null : a.id)}
+                                                className="shrink-0 rounded-md bg-ink-900 px-2 py-1 text-xs font-semibold text-white transition hover:bg-ink-800 dark:bg-slate-600 dark:hover:bg-slate-500"
+                                              >
+                                                {regCount} inscrito{regCount === 1 ? "" : "s"}
+                                              </button>
+                                              <button
+                                                onClick={() => handleDeleteAnnouncement(a.id)}
+                                                className="shrink-0 rounded-md border border-coral-200 bg-white px-3 py-1.5 text-xs font-semibold text-coral-600 transition hover:bg-coral-50 dark:border-coral-800 dark:bg-slate-700 dark:text-coral-400 dark:hover:bg-slate-600"
+                                              >
+                                                Remover
+                                              </button>
+                                            </div>
+                                          </div>
+
+                                          {isExpanded && regs.length > 0 && (
+                                            <div className="border-t border-slate-200 px-3 py-2">
+                                              <div className="flex flex-col gap-1">
+                                                {regs.map((reg, i) => (
+                                                  <div
+                                                    key={reg.student_id}
+                                                    className="flex items-center justify-between rounded-md bg-white px-3 py-1.5"
+                                                  >
+                                                    <div className="min-w-0">
+                                                      <p className="text-sm font-medium text-ink-950">
+                                                        {reg.full_name}
+                                                      </p>
+                                                      <p className="truncate text-xs text-slate-500">
+                                                        {reg.username}
+                                                      </p>
+                                                    </div>
+                                                    <span className="shrink-0 text-xs text-slate-400">
+                                                      {new Date(reg.registered_at).toLocaleDateString("pt-PT")}
+                                                    </span>
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            </div>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
                           {publishError ? (
                             <p className="rounded-md border border-coral-100 bg-coral-50 px-3 py-2 text-sm text-coral-500">
                               {publishError}
@@ -3015,7 +3235,7 @@ if (categoryFromHash) {
                         </section>
                       ) : null}
 
-                      {currentView === "category" ? (
+                      {currentView === "category" && currentAccount.role !== "Professor" ? (
                         <>
                           <div
                             className="scroll-mt-24 flex flex-col gap-3 border-b border-slate-200 pb-3 sm:flex-row sm:items-center sm:justify-between"
