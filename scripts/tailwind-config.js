@@ -1,4 +1,5 @@
 tailwind.config = {
+        darkMode: "class",
         theme: {
           extend: {
             colors: {
@@ -23,7 +24,20 @@ tailwind.config = {
               coral: {
                 50: "#fdf2f2",
                 100: "#f7d7d7",
+                200: "#f0b5b5",
                 500: "#c95b57",
+                600: "#b54945",
+                700: "#9c3a36",
+                900: "#6b2725",
+                950: "#3d1413",
+              },
+              amber: {
+                50: "#fffbeb",
+                100: "#fef3c7",
+                200: "#fde68a",
+                500: "#f59e0b",
+                900: "#78350f",
+                950: "#451a03",
               },
               cyan: {
                 50: "#eef7fb",

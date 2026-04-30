@@ -16,6 +16,8 @@ No SQL Editor do Supabase, executar nesta ordem:
 4. `04_username_login.sql` se a base já tinha o schema antigo e queres acrescentar login por username
 5. `05_secretaria_user_management.sql` para permitir que a Secretaria liste/crie/remova utilizadores
 6. `06_profile_avatar.sql` para adicionar foto de perfil com Supabase Storage
+7. `07_class_schedules.sql` para adicionar verificação de conflitos de horários de aulas
+8. `08_seed_class_schedules.sql` para carregar horários de exemplo dos alunos
 
 Se aplicares fora de ordem, podes ter erros de tipos/tabelas/policies inexistentes.
 
@@ -69,7 +71,26 @@ Sugestão prática:
 - `seed-users.mjs`: seed idempotente de utilizadores no Auth.
 - `05_secretaria_user_management.sql`: funções RPC para gestão de utilizadores pela Secretaria.
 - `06_profile_avatar.sql`: coluna `avatar_url` e políticas do bucket `avatars`.
+- `07_class_schedules.sql`: tabela de horários de aulas e funções de verificação de conflitos.
+- `08_seed_class_schedules.sql`: horários de exemplo para o aluno "armindo".
 - `01_schema.sql` + `02_rls.sql`: incluem também inscrições em avisos (`announcement_registrations`), limite máximo (`max_registrations`) e RPCs `register_announcement` / `unregister_announcement`.
+
+### Sistema de Verificação de Conflitos de Horário (v7-8)
+Novo sistema que detecta automaticamente quando um aluno tenta se inscrever em um evento com horário que conflita com suas aulas marcadas.
+
+**Funcionalidades:**
+- Tabela `student_class_schedules` armazena horários de aulas por aluno
+- RPC `check_announcement_conflict()` verifica se há conflitos
+- RPC `register_announcement()` modificada para bloquear inscrições com conflito
+- UI com modal de aviso mostrando aulas em conflito
+- Opção para inscrever mesmo com conflito (após confirmação)
+
+**Dados de exemplo:**
+- Aluno "armindo" tem as aulas do calendário carregadas automaticamente
+- Segunda a sexta, com horários variados
+
+**Para mais informações:**
+Veja `CLASS_SCHEDULE_SYSTEM.md` para documentação completa do sistema.
 
 ## 5) Próximo passo no frontend
 Integrar Supabase no `index.html` e substituir:
@@ -98,3 +119,11 @@ Isto permite usar:
 	confirmar se existem anúncios para a escola do utilizador.
 - Script seed falha por variáveis em falta:
 	confirmar `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY` no comando.
+- Sistema de horários não funciona:
+	- Confirmar que `07_class_schedules.sql` foi executado
+	- Confirmar que `08_seed_class_schedules.sql` foi executado
+	- Verificar se existem registos em `student_class_schedules` para o aluno
+	- Verificar se o evento tem `start_time` e `end_time` definidos
+- Modal de conflito não aparece:
+	- Verificar console do browser para erros da RPC `check_announcement_conflict`
+	- Confirmar se as permissões (grants) foram aplicadas ao final de `07_class_schedules.sql`

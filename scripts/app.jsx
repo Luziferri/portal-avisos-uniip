@@ -349,6 +349,10 @@ const MapPin = (props) => (
         const [registrationError, setRegistrationError] = useState("");
         const [registrationInfo, setRegistrationInfo] = useState("");
         const [registrationActionId, setRegistrationActionId] = useState("");
+        const [scheduleConflict, setScheduleConflict] = useState(null);
+        const [pendingRegistration, setPendingRegistration] = useState(null);
+        const [weeklySchedule, setWeeklySchedule] = useState([]);
+        const [weeklyAnnouncements, setWeeklyAnnouncements] = useState([]);
         const [activeSection, setActiveSection] = useState("feed");
         const [currentView, setCurrentView] = useState("dashboard");
         const announcementsRequestRef = useRef(0);
@@ -417,6 +421,45 @@ const MapPin = (props) => (
             return;
           }
           setAnnouncements(data);
+        };
+
+        const loadWeeklyScheduleAndAnnouncements = async () => {
+          if (!supabaseClient || !isAluno) return;
+
+          try {
+            // Carregar horários de aulas
+            const { data: scheduleData, error: scheduleError } = await supabaseClient
+              .from("student_class_schedules")
+              .select("*")
+              .eq("student_id", supabaseClient.auth.user?.id || profile?.id)
+              .order("day_of_week")
+              .order("start_time");
+
+            if (!scheduleError && scheduleData) {
+              setWeeklySchedule(scheduleData || []);
+            }
+
+            // Carregar anúncios da semana
+            const today = new Date();
+            const weekStart = new Date(today);
+            weekStart.setDate(today.getDate() - today.getDay());
+            const weekEnd = new Date(weekStart);
+            weekEnd.setDate(weekStart.getDate() + 7);
+
+            const { data: announcementData, error: announcementError } = await supabaseClient
+              .from("announcements")
+              .select("*")
+              .eq("school", currentAccount?.school || profile?.school)
+              .gte("expires_at", toDateKey(weekStart))
+              .lte("expires_at", toDateKey(weekEnd))
+              .order("expires_at");
+
+            if (!announcementError && announcementData) {
+              setWeeklyAnnouncements(announcementData || []);
+            }
+          } catch (err) {
+            console.error("Load weekly data error:", err);
+          }
         };
 
         const loadProfile = async (user) => {
@@ -689,6 +732,7 @@ const MapPin = (props) => (
           }
 
           document.documentElement.classList.toggle("theme-dark", isDark);
+          document.documentElement.classList.toggle("dark", isDark);
           document.documentElement.style.colorScheme = isDark
             ? "dark"
             : "light";
@@ -1203,36 +1247,128 @@ if (categoryFromHash) {
             return;
           }
 
+          // If unregistering, proceed without conflict check
+          if (isRegistered) {
+            setRegistrationError("");
+            setRegistrationInfo("");
+            setRegistrationActionId(announcement.id);
+
+            try {
+              const { error } = await supabaseClient.rpc("unregister_announcement", {
+                p_announcement_id: announcement.id,
+              });
+
+              if (error) {
+                throw error;
+              }
+
+              setRegistrationInfo("Inscrição removida com sucesso.");
+              await refreshAnnouncements();
+              setTimeout(() => setRegistrationInfo(""), 3000);
+            } catch (error) {
+              setRegistrationError(
+                error.message || "Não foi possível atualizar a inscrição.",
+              );
+              setTimeout(() => setRegistrationError(""), 3000);
+            } finally {
+              setRegistrationActionId("");
+            }
+            return;
+          }
+
+          // Check for schedule conflicts before registering
           setRegistrationError("");
           setRegistrationInfo("");
+
+          if (announcement.start_time && announcement.end_time) {
+            try {
+              const { data: conflictData, error: conflictError } = await supabaseClient.rpc(
+                "check_announcement_conflict",
+                { p_announcement_id: announcement.id }
+              );
+
+              if (conflictError) {
+                setRegistrationError("Erro ao verificar horário: " + conflictError.message);
+                return;
+              }
+
+              if (conflictData && conflictData[0]?.has_conflict) {
+                // Show conflict warning
+                setScheduleConflict({
+                  conflictingClasses: conflictData[0]?.conflicting_classes,
+                  announcement: announcement,
+                });
+                return;
+              }
+            } catch (error) {
+              setRegistrationError("Erro ao verificar conflito de horário.");
+              return;
+            }
+          }
+
+          // No conflicts, proceed with registration
           setRegistrationActionId(announcement.id);
 
           try {
-            const rpcName = isRegistered
-              ? "unregister_announcement"
-              : "register_announcement";
-
-            const { error } = await supabaseClient.rpc(rpcName, {
+            const { error } = await supabaseClient.rpc("register_announcement", {
               p_announcement_id: announcement.id,
+              p_force: false,
             });
 
             if (error) {
               throw error;
             }
 
-            setRegistrationInfo(
-              isRegistered
-                ? "Inscrição removida com sucesso."
-                : "Inscrição realizada com sucesso.",
-            );
+            setRegistrationInfo("Inscrição realizada com sucesso.");
             await refreshAnnouncements();
+            setTimeout(() => setRegistrationInfo(""), 3000);
           } catch (error) {
             setRegistrationError(
               error.message || "Não foi possível atualizar a inscrição.",
             );
+            setTimeout(() => setRegistrationError(""), 3000);
           } finally {
             setRegistrationActionId("");
           }
+        };
+
+        const handleConfirmRegistrationWithConflict = async () => {
+          if (!scheduleConflict?.announcement || !supabaseClient) {
+            setScheduleConflict(null);
+            return;
+          }
+
+          setRegistrationActionId(scheduleConflict.announcement.id);
+          setRegistrationError("");
+          setRegistrationInfo("");
+
+          try {
+            const { error } = await supabaseClient.rpc("register_announcement", {
+              p_announcement_id: scheduleConflict.announcement.id,
+              p_force: true,
+            });
+
+            if (error) {
+              throw error;
+            }
+
+            setRegistrationInfo("Inscrição realizada com sucesso (com aviso de conflito).");
+            setScheduleConflict(null);
+            await refreshAnnouncements();
+            setTimeout(() => setRegistrationInfo(""), 3000);
+          } catch (error) {
+            setRegistrationError(
+              error.message || "Não foi possível atualizar a inscrição.",
+            );
+            setTimeout(() => setRegistrationError(""), 3000);
+          } finally {
+            setRegistrationActionId("");
+          }
+        };
+
+        const handleCancelConflictDialog = () => {
+          setScheduleConflict(null);
+          setRegistrationError("");
         };
 
         const handleCreateUser = async (event) => {
@@ -1338,6 +1474,13 @@ if (categoryFromHash) {
 
           setVisibleAnnouncements(filtered);
         }, [search, selectedSchool, selectedCategory, announcements]);
+
+        // Carregar calendário e anúncios da semana ao ir para página de conta
+        useEffect(() => {
+          if (currentView === "account" && isAluno) {
+            loadWeeklyScheduleAndAnnouncements();
+          }
+        }, [currentView, isAluno]);
 
         const counts = useMemo(() => {
           const bySchool = announcements.reduce((acc, item) => {
@@ -2054,6 +2197,140 @@ if (categoryFromHash) {
                         ) : null}
                       </div>
 
+                      {/* Seção: Calendário Semanal + Anúncios */}
+                      {isAluno && (
+                        <div className="space-y-6">
+                          <hr className="border-slate-200" />
+                          
+                          {/* Calendário da Semana */}
+                          <div>
+                            <div className="mb-4">
+                              <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+                                Calendário
+                              </p>
+                              <h3 className="mt-1 text-lg font-semibold text-ink-950">
+                                Horários e Atividades da Semana
+                              </h3>
+                            </div>
+
+                            {weeklySchedule.length > 0 ? (
+                              <div className="grid gap-3 md:grid-cols-5">
+                                {[
+                                  { day: 1, label: "Segunda" },
+                                  { day: 2, label: "Terça" },
+                                  { day: 3, label: "Quarta" },
+                                  { day: 4, label: "Quinta" },
+                                  { day: 5, label: "Sexta" },
+                                ].map(({ day, label }) => {
+                                  const dayClasses = weeklySchedule.filter(
+                                    (cls) => cls.day_of_week === day
+                                  );
+                                  
+                                  return (
+                                    <div
+                                      key={day}
+                                      className="flex flex-col rounded-xl border border-slate-200 bg-gradient-to-b from-slate-50 to-white p-4 shadow-sm"
+                                    >
+                                      <div className="mb-3 flex items-center gap-2">
+                                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-ink-100 text-ink-700 text-xs font-bold">
+                                          {day}
+                                        </div>
+                                        <span className="text-sm font-bold text-ink-950">
+                                          {label}
+                                        </span>
+                                      </div>
+                                      
+                                      {dayClasses.length > 0 ? (
+                                        <div className="space-y-2">
+                                          {dayClasses.map((cls) => (
+                                            <div
+                                              key={cls.id}
+                                              className="rounded-lg border border-blue-100 bg-blue-50 p-2"
+                                            >
+                                              <p className="text-xs font-semibold text-blue-900">
+                                                {cls.class_name}
+                                              </p>
+                                              <p className="text-xs text-blue-700">
+                                                {cls.start_time.slice(0, 5)} -{" "}
+                                                {cls.end_time.slice(0, 5)}
+                                              </p>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      ) : (
+                                        <p className="text-xs text-slate-400">
+                                          Sem aulas
+                                        </p>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 text-center">
+                                <CalendarDays className="mx-auto mb-2 h-6 w-6 text-slate-400" />
+                                <p className="text-sm text-slate-500">
+                                  Nenhum horário de aula registado
+                                </p>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Anúncios da Semana */}
+                          <div>
+                            <div className="mb-4">
+                              <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+                                Avisos
+                              </p>
+                              <h3 className="mt-1 text-lg font-semibold text-ink-950">
+                                Avisos da Semana
+                              </h3>
+                            </div>
+
+                            {weeklyAnnouncements.length > 0 ? (
+                              <div className="space-y-3">
+                                {weeklyAnnouncements.slice(0, 5).map((announcement) => {
+                                  const school = schoolConfig[announcement.school];
+                                  return (
+                                    <div
+                                      key={announcement.id}
+                                      className="flex gap-3 rounded-lg border border-slate-200 bg-white p-3 shadow-sm hover:border-slate-300 hover:shadow-md transition-all"
+                                    >
+                                      <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${school?.badge} text-white text-xs font-bold`}>
+                                        {school?.label}
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-semibold text-ink-950 truncate">
+                                          {announcement.title}
+                                        </p>
+                                        <p className="text-xs text-slate-500">
+                                          {announcement.category}
+                                          {announcement.start_time && announcement.end_time
+                                            ? ` • ${announcement.start_time.slice(0, 5)} - ${announcement.end_time.slice(0, 5)}`
+                                            : ""}
+                                        </p>
+                                      </div>
+                                      <div className="flex shrink-0 items-center">
+                                        <span className="text-xs font-medium text-slate-500">
+                                          {formatDate(announcement.expires_at)}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 text-center">
+                                <BellRing className="mx-auto mb-2 h-6 w-6 text-slate-400" />
+                                <p className="text-sm text-slate-500">
+                                  Nenhum aviso esta semana
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
                       {/* Grelha de Cartões */}
                       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                         {/* Cartão: Nome */}
@@ -2686,7 +2963,7 @@ if (categoryFromHash) {
 
                               <label className="block space-y-2">
                                 <span className="text-sm font-medium text-ink-700">
-                                  Data de expiração
+                                  Data do Evento
                                 </span>
                                 <input
                                   type="date"
@@ -2954,6 +3231,50 @@ if (categoryFromHash) {
               Calendário
             </button>
           </nav>
+
+          {/* Modal de Conflito de Horário */}
+          {scheduleConflict && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+              <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-800">
+                <div className="border-b border-coral-200 bg-coral-50 px-6 py-4 dark:border-coral-900/30 dark:bg-coral-950/40">
+                  <h2 className="text-lg font-bold text-coral-900 dark:text-coral-200">⚠️ Conflito de Horário Detectado</h2>
+                </div>
+                <div className="px-6 py-4">
+                  <p className="text-sm text-slate-700 dark:text-slate-300">
+                    Você tem aulas agendadas durante este evento:
+                  </p>
+                  <div className="mt-3 rounded-lg bg-coral-50 p-3 border border-coral-200 dark:bg-coral-950/30 dark:border-coral-900/30">
+                    <p className="text-sm font-semibold text-coral-900 dark:text-coral-200">
+                      {scheduleConflict.conflictingClasses}
+                    </p>
+                  </div>
+                  <p className="mt-4 text-sm text-slate-600 dark:text-slate-400">
+                    <strong>Evento:</strong> {scheduleConflict.announcement?.title}
+                  </p>
+                  <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+                    <strong>Horário:</strong> {scheduleConflict.announcement?.start_time} - {scheduleConflict.announcement?.end_time}
+                  </p>
+                  <p className="mt-3 rounded-lg bg-amber-50 p-3 border border-amber-200 text-sm text-amber-900 dark:bg-amber-950/30 dark:border-amber-900/30 dark:text-amber-200">
+                    💡 Tem a certeza de que deseja inscrever-se mesmo com este conflito?
+                  </p>
+                </div>
+                <div className="flex gap-3 border-t border-slate-200 px-6 py-4 dark:border-slate-700">
+                  <button
+                    onClick={handleCancelConflictDialog}
+                    className="flex-1 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={handleConfirmRegistrationWithConflict}
+                    className="flex-1 rounded-lg bg-coral-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-coral-700 dark:bg-coral-700 dark:hover:bg-coral-600"
+                  >
+                    Inscrever Mesmo Assim
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
           </div>
         );
       }
