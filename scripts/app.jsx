@@ -345,7 +345,7 @@ const MapPin = (props) => (
         });
         const [search, setSearch] = useState("");
         const [selectedSchool, setSelectedSchool] = useState("Todas");
-        const [selectedCategory, setSelectedCategory] = useState("Evento");
+        const [selectedCategory, setSelectedCategory] = useState(null);
         const [announcements, setAnnouncements] = useState([]);
         const [visibleAnnouncements, setVisibleAnnouncements] = useState([]);
         const [managedUsers, setManagedUsers] = useState([]);
@@ -1538,8 +1538,8 @@ if (categoryFromHash) {
               const matchesSchool =
                 selectedSchool === "Todas" ||
                 announcement.school === selectedSchool;
-              const matchesCategory =
-                announcement.category === selectedCategory;
+const matchesCategory =
+                 selectedCategory === null || announcement.category === selectedCategory;
               return matchesSearch && matchesSchool && matchesCategory;
             })
             .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
@@ -2777,11 +2777,11 @@ if (categoryFromHash) {
 
                               <button
                                 type="button"
-                                onClick={() => {
-                                  setSearch("");
-                                  setSelectedSchool("Todas");
-                                  setSelectedCategory("Evento");
-                                }}
+onClick={() => {
+                                   setSearch("");
+                                   setSelectedSchool("Todas");
+                                   setSelectedCategory(null);
+                                 }}
                                 className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50/80 px-5 py-3 text-sm font-semibold text-slate-600 transition-all hover:bg-slate-100 hover:text-ink-950"
                               >
                                 <X className="h-4 w-4" />
