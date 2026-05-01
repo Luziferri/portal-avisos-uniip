@@ -345,8 +345,10 @@ const MapPin = (props) => (
         });
         const [search, setSearch] = useState("");
         const [selectedSchool, setSelectedSchool] = useState("Todas");
-        const [selectedCategory, setSelectedCategory] = useState(null);
-        const [announcements, setAnnouncements] = useState([]);
+const [selectedCategory, setSelectedCategory] = useState(null);
+         const [showAllEvents, setShowAllEvents] = useState(false);
+         const [expandedDays, setExpandedDays] = useState({});
+         const [announcements, setAnnouncements] = useState([]);
         const [visibleAnnouncements, setVisibleAnnouncements] = useState([]);
         const [managedUsers, setManagedUsers] = useState([]);
         const [userManagementLoading, setUserManagementLoading] =
@@ -2326,33 +2328,51 @@ const matchesCategory =
                                       ) : null}
                                     </div>
 
-                                    <div className="mt-2 space-y-1.5">
-                                      {dayEvents.length > 0 ? (
-                                        dayEvents.slice(0, 2).map((event) => (
-                                          <div
-                                            key={event.id}
-                                            className="rounded-md border border-sky-100 bg-sky-50 px-2 py-1.5 text-xs font-semibold text-sky-800"
-                                          >
-                                            <p className="leading-4">{event.title}</p>
-                                            {event.timeRange ? (
-                                              <p className="mt-0.5 text-[10px] font-medium text-sky-700">
-                                                {event.timeRange}
-                                              </p>
-                                            ) : null}
-                                          </div>
-                                        ))
-                                      ) : (
-                                        <p className="text-xs text-slate-400">
-                                          Sem eventos
-                                        </p>
-                                      )}
-
-                                      {dayEvents.length > 2 ? (
-                                        <p className="text-[11px] font-semibold text-slate-500">
-                                          +{dayEvents.length - 2} evento(s)
-                                        </p>
-                                      ) : null}
-                                    </div>
+<div className="mt-2 space-y-1.5">
+                                       {dayEvents.length > 0 ? (
+                                         <>
+                                           {(expandedDays[dayKey] ? dayEvents : dayEvents.slice(0, 1)).map((event) => (
+                                             <div
+                                               key={event.id}
+                                               className="rounded-md border border-sky-100 bg-sky-50 px-2 py-1.5 text-xs font-semibold text-sky-800"
+                                             >
+                                               <p className="leading-4">{event.title}</p>
+                                               {event.timeRange ? (
+                                                 <p className="mt-0.5 text-[10px] font-medium text-sky-700">
+                                                   {event.timeRange}
+                                                 </p>
+                                               ) : null}
+                                             </div>
+                                           ))}
+                                           {!expandedDays[dayKey] && dayEvents.length > 1 && (
+                                             <button
+                                               onClick={(e) => {
+                                                 e.stopPropagation();
+                                                 setExpandedDays(prev => ({...prev, [dayKey]: true}));
+                                               }}
+                                               className="w-full rounded-md border border-dashed border-sky-200 bg-sky-50 py-1 text-[11px] font-semibold text-sky-600 transition hover:bg-sky-100"
+                                             >
+                                               ...
+                                             </button>
+                                           )}
+                                           {expandedDays[dayKey] && dayEvents.length > 1 && (
+                                             <button
+                                               onClick={(e) => {
+                                                 e.stopPropagation();
+                                                 setExpandedDays(prev => ({...prev, [dayKey]: false}));
+                                               }}
+                                               className="w-full rounded-md border border-dashed border-sky-200 bg-sky-50 py-1 text-[11px] font-semibold text-sky-600 transition hover:bg-sky-100"
+                                             >
+                                               Mostrar menos
+                                             </button>
+                                           )}
+                                         </>
+                                       ) : (
+                                         <p className="text-xs text-slate-400">
+                                           Sem eventos
+                                         </p>
+                                       )}
+                                     </div>
                                   </div>
                                 );
                               })}
@@ -2368,45 +2388,63 @@ const matchesCategory =
                                 <Sparkles className="h-5 w-5 text-slate-500" />
                               </div>
 
-                              <div className="mt-4 space-y-3">
-                                {monthEvents.length > 0 ? (
-                                  monthEvents.map((event) => (
-                                    <article
-                                      key={event.id}
-                                      className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
-                                    >
-                                      <div className="flex items-start justify-between gap-3">
-                                        <div>
-                                          <p className="text-sm font-semibold text-ink-950">
-                                            {event.title}
-                                          </p>
-                                          <p className="mt-1 text-xs text-slate-500">
-                                            {schoolConfig[event.school]?.name || event.school}
-                                          </p>
-                                          {event.timeRange ? (
-                                            <p className="mt-1 text-xs font-semibold text-sky-700">
-                                              {event.timeRange}
-                                            </p>
-                                          ) : null}
-                                        </div>
-                                        <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
-                                          {event.eventDate.toLocaleDateString("pt-PT", {
-                                            day: "2-digit",
-                                            month: "short",
-                                          })}
-                                        </div>
-                                      </div>
-                                      <p className="mt-3 text-sm leading-6 text-ink-600">
-                                        {event.description}
-                                      </p>
-                                    </article>
-                                  ))
-                                ) : (
-                                  <div className="rounded-xl border border-dashed border-slate-300 bg-white p-4 text-sm text-slate-500">
-                                    Ainda não existem eventos marcados para este mês.
-                                  </div>
-                                )}
-                              </div>
+<div className="mt-4 space-y-3">
+                                 {monthEvents.length > 0 ? (
+                                   <>
+                                     {(showAllEvents ? monthEvents : monthEvents.slice(0, 4)).map((event) => (
+                                       <article
+                                         key={event.id}
+                                         className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+                                       >
+                                         <div className="flex items-start justify-between gap-3">
+                                           <div>
+                                             <p className="text-sm font-semibold text-ink-950">
+                                               {event.title}
+                                             </p>
+                                             <p className="mt-1 text-xs text-slate-500">
+                                               {schoolConfig[event.school]?.name || event.school}
+                                             </p>
+                                             {event.timeRange ? (
+                                               <p className="mt-1 text-xs font-semibold text-sky-700">
+                                                 {event.timeRange}
+                                               </p>
+                                             ) : null}
+                                           </div>
+                                           <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                                             {event.eventDate.toLocaleDateString("pt-PT", {
+                                               day: "2-digit",
+                                               month: "short",
+                                             })}
+                                           </div>
+                                         </div>
+                                         <p className="mt-3 text-sm leading-6 text-ink-600">
+                                           {event.description}
+                                         </p>
+                                       </article>
+                                     ))}
+                                     {!showAllEvents && monthEvents.length > 4 && (
+                                       <button
+                                         onClick={() => setShowAllEvents(true)}
+                                         className="w-full rounded-xl border border-dashed border-slate-300 bg-white p-3 text-sm font-semibold text-slate-500 transition hover:bg-slate-50"
+                                       >
+                                         ...
+                                       </button>
+                                     )}
+                                     {showAllEvents && monthEvents.length > 4 && (
+                                       <button
+                                         onClick={() => setShowAllEvents(false)}
+                                         className="w-full rounded-xl border border-dashed border-slate-300 bg-white p-3 text-sm font-semibold text-slate-500 transition hover:bg-slate-50"
+                                       >
+                                         Mostrar menos
+                                       </button>
+                                     )}
+                                   </>
+                                 ) : (
+                                   <div className="rounded-xl border border-dashed border-slate-300 bg-white p-4 text-sm text-slate-500">
+                                     Ainda não existem eventos marcados para este mês.
+                                   </div>
+                                 )}
+                               </div>
                             </div>
 
                             <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
