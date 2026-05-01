@@ -2211,7 +2211,7 @@ const matchesCategory =
     </div>
   </div>
 </header>
-            <div className="mx-auto max-w-7xl px-4 py-6 lg:px-8">
+            <div className="mx-auto w-full max-w-full overflow-x-hidden px-4 py-6 lg:max-w-7xl lg:px-8">
               <div
                 className={
                   currentView === "account" ||
@@ -2243,7 +2243,7 @@ const matchesCategory =
                         </button>
                       </div>
 
-                      <div className="flex items-center gap-2">
+                      <div className="flex shrink-0 flex-wrap items-center gap-2">
                         <button
                           type="button"
                           onClick={() => shiftCalendarMonth(-1)}
@@ -3181,10 +3181,11 @@ onClick={() => {
                       ) : null}
 
                       {currentView === "dashboard" && currentAccount.role === "Professor" ? (
-                        <section
-                          className="panel scroll-mt-24 space-y-4 p-5"
-                          id="professor"
-                        >
+<section
+                           className="panel scroll-mt-24 space-y-4 overflow-x-hidden p-5 w-full"
+                           id="professor"
+                           style={{ maxWidth: "100vw", width: "100%" }}
+                         >
                           <div className="flex items-end justify-between gap-4">
                             <div>
                               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
@@ -3202,10 +3203,10 @@ onClick={() => {
                             </div>
                           </div>
 
-                          <form
-                            className="grid gap-4 lg:grid-cols-[1.4fr_1fr]"
-                            onSubmit={handleCreateAnnouncement}
-                          >
+<form
+                             className="grid gap-4 grid-cols-1 lg:grid-cols-[1.4fr_1fr]"
+                             onSubmit={handleCreateAnnouncement}
+                           >
                             <div className="space-y-4">
                               <label className="block space-y-2">
                                 <span className="text-sm font-medium text-ink-700">
@@ -3243,7 +3244,7 @@ onClick={() => {
                               </label>
                             </div>
 
-                            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1 lg:content-start">
+                            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 lg:content-start">
                               <label className="block space-y-2">
                                 <span className="text-sm font-medium text-ink-700">
                                   Escola
@@ -3374,7 +3375,7 @@ onClick={() => {
                           </form>
 
                           {professorAnnouncements.length > 0 && (
-                            <div className="mt-6 grid gap-4 lg:grid-cols-2">
+                            <div className="mt-6 grid gap-4 grid-cols-1 lg:grid-cols-2 w-full">
                               <div className="space-y-3">
                                 <h3 className="text-sm font-semibold text-emerald-700">
                                   Avisos Ativos ({professorAnnouncements.filter((a) => !isExpired(a.expires_at)).length})
@@ -3401,7 +3402,7 @@ onClick={() => {
                                                 {a.category} · {a.expires_at}
                                               </p>
                                             </div>
-                                            <div className="flex items-center gap-2">
+                                            <div className="flex shrink-0 flex-wrap items-center gap-2">
                                               <button
                                                 onClick={() => setExpandedRegistration(isExpanded ? null : a.id)}
                                                 className="shrink-0 rounded-md bg-ink-900 px-2 py-1 text-xs font-semibold text-white transition hover:bg-ink-800 dark:bg-slate-600 dark:hover:bg-slate-500"
@@ -3477,7 +3478,7 @@ onClick={() => {
                                                 {a.category} · {a.expires_at}
                                               </p>
                                             </div>
-                                            <div className="flex items-center gap-2">
+                                            <div className="flex shrink-0 flex-wrap items-center gap-2">
                                               <button
                                                 onClick={() => setExpandedRegistration(isExpanded ? null : a.id)}
                                                 className="shrink-0 rounded-md bg-ink-900 px-2 py-1 text-xs font-semibold text-white transition hover:bg-ink-800 dark:bg-slate-600 dark:hover:bg-slate-500"
