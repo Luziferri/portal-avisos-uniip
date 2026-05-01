@@ -142,6 +142,16 @@
         </Icon>
       );
 
+      const Clock = (props) => (
+  <Icon {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    {/* Círculo do relógio */}
+    <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" />
+    
+    {/* Ponteiros (Meio-dia e quinze) */}
+    <path d="M12 6v6l4 2" />
+  </Icon>
+);
+
       const MessageSquare = (props) => (
         <Icon {...props}>
           <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
@@ -3787,7 +3797,7 @@ if (categoryFromHash) {
                                         </div>
                                         {announcement.start_time && announcement.end_time ? (
                                           <div className="flex items-center gap-1.5">
-                                            <Sparkles className="h-4 w-4 text-slate-400" />
+                                            <Clock className="h-4 w-4 text-slate-400" />
                                             <span>
                                               {formatEventTimeRange(
                                                 announcement.start_time,
