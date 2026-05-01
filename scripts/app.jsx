@@ -142,6 +142,12 @@
         </Icon>
       );
 
+      const MessageSquare = (props) => (
+        <Icon {...props}>
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+        </Icon>
+      );
+
       const BellRing = (props) => (
         <Icon {...props}>
           <path d="M10.3 18a1.7 1.7 0 0 0 3.4 0" />
@@ -280,6 +286,7 @@ const MapPin = (props) => (
           filtros: "#filtros",
           professor: "#publicar",
           secretaria: "#utilizadores",
+          forums: "#forums",
         };
         const categoryHashMap = Object.keys(categoryConfig).reduce(
           (acc, category) => {
@@ -368,6 +375,14 @@ const MapPin = (props) => (
         const isSecretaria = currentAccount?.role === "Secretaria";
         const isAluno = currentAccount?.role === "Aluno";
         const isProfessor = currentAccount?.role === "Professor";
+
+        const [selectedForum, setSelectedForum] = useState(null);
+        const [forumMessages, setForumMessages] = useState([]);
+        const [newMessage, setNewMessage] = useState("");
+        const [onlineUsers, setOnlineUsers] = useState([]);
+        const [allForumUsers, setAllForumUsers] = useState([]);
+        const forumMessagesEndRef = useRef(null);
+        const presenceChannelRef = useRef(null);
 
         const professorAnnouncements = useMemo(() => {
           if (!isProfessor || !session) return [];
@@ -884,12 +899,6 @@ if (categoryFromHash) {
               setSelectedCategory(categoryFromHash);
               setCurrentView("category");
               setActiveSection("feed");
-              requestAnimationFrame(() => {
-                const target = document.getElementById("feed");
-                if (target) {
-                  target.scrollIntoView({ behavior: "smooth", block: "start" });
-                }
-              });
               return;
             }
 
@@ -899,12 +908,6 @@ if (categoryFromHash) {
             } else if (hash === "#calendario") {
               setCurrentView("calendar");
               setActiveSection("calendar");
-              requestAnimationFrame(() => {
-                const target = document.getElementById("calendar-page");
-                if (target) {
-                  target.scrollIntoView({ behavior: "smooth", block: "start" });
-                }
-              });
               return;
             } else if (hash === "#publicar" && session?.role === "Professor") {
               nextSection = "professor";
@@ -913,17 +916,14 @@ if (categoryFromHash) {
               session?.role === "Secretaria"
             ) {
               nextSection = "secretaria";
+            } else if (hash === "#foruns") {
+              setCurrentView("forums");
+              setActiveSection("forums");
+              return;
             }
 
             setCurrentView("dashboard");
             setActiveSection(nextSection);
-
-            requestAnimationFrame(() => {
-              const target = document.getElementById(nextSection);
-              if (target) {
-                target.scrollIntoView({ behavior: "smooth", block: "start" });
-              }
-            });
           };
 
           syncViewFromHash();
@@ -944,15 +944,7 @@ if (categoryFromHash) {
           if (currentView !== "dashboard") {
             setCurrentView("dashboard");
             window.location.hash = nextHash;
-
-            requestAnimationFrame(() => {
-              const target = document.getElementById(sectionId);
-              if (target) {
-                target.scrollIntoView({ behavior: "smooth", block: "start" });
-                setActiveSection(sectionId);
-              }
-            });
-
+            setActiveSection(sectionId);
             return;
           }
 
@@ -963,7 +955,6 @@ if (categoryFromHash) {
           }
 
           window.location.hash = nextHash;
-          target.scrollIntoView({ behavior: "smooth", block: "start" });
           setActiveSection(sectionId);
         };
 
@@ -971,14 +962,12 @@ if (categoryFromHash) {
           setCurrentView("account");
           setActiveSection("account");
           window.location.hash = "#conta";
-          window.scrollTo({ top: 0, behavior: "smooth" });
         };
 
         const navigateToCalendarPage = () => {
           setCurrentView("calendar");
           setActiveSection("calendar");
           window.location.hash = "#calendario";
-          window.scrollTo({ top: 0, behavior: "smooth" });
         };
 
         const navigateToCategoryPage = (category) => {
@@ -991,7 +980,10 @@ if (categoryFromHash) {
           setCurrentView("category");
           setActiveSection("feed");
           window.location.hash = categoryHashMap[category] || "#feed";
-          window.scrollTo({ top: 0, behavior: "smooth" });
+        };
+
+        const navigateToForumsPage = () => {
+          window.location.hash = "#foruns";
         };
 
         const handleLogin = async (event) => {
@@ -1552,6 +1544,175 @@ if (categoryFromHash) {
           }
         }, [currentView, isAluno]);
 
+        const loadForumMessages = async (eventId) => {
+          if (!supabaseClient) return;
+          try {
+            const { data, error } = await supabaseClient
+              .from("event_messages")
+              .select("*")
+              .eq("event_id", eventId)
+              .order("created_at", { ascending: true });
+
+            if (error) throw error;
+            setForumMessages(data || []);
+          } catch (err) {
+            console.error("Load forum messages error:", err);
+            setForumMessages([]);
+          }
+        };
+
+        const loadForumUsers = async (eventId) => {
+          if (!supabaseClient) return;
+          try {
+            // Get registered students
+            const { data: registrations, error: regError } = await supabaseClient
+              .from("announcement_registrations")
+              .select("student_id")
+              .eq("announcement_id", eventId);
+
+            if (regError) throw regError;
+
+            // Get author info
+            const { data: announcement, error: annError } = await supabaseClient
+              .from("announcements")
+              .select("author_id")
+              .eq("id", eventId)
+              .single();
+
+            if (annError) throw annError;
+
+            // Get all user names from profiles or auth
+            const userIds = [...(registrations?.map(r => r.student_id) || []), announcement?.author_id].filter(Boolean);
+
+            if (userIds.length > 0) {
+              const { data: profiles, error: profError } = await supabaseClient
+                .from("profiles")
+                .select("id, username")
+                .in("id", userIds);
+
+              if (!profError && profiles) {
+                setAllForumUsers(profiles.map(p => p.username || 'Utilizador'));
+              }
+            }
+          } catch (err) {
+            console.error("Load forum users error:", err);
+          }
+        };
+
+        const sendForumMessage = async () => {
+          if (!selectedForum || !session || !newMessage.trim()) return;
+          try {
+            const { error } = await supabaseClient
+              .from("event_messages")
+              .insert({
+                event_id: selectedForum.id,
+                user_id: session.id,
+                user_name: currentAccount?.name || session.email,
+                content: newMessage.trim(),
+              });
+            if (error) throw error;
+            setNewMessage("");
+          } catch (err) {
+            console.error("Send message error:", err);
+          }
+        };
+
+        const deleteForumMessage = async (messageId) => {
+          if (!session) return;
+
+          // Optimistic update: remove immediately from local state
+          setForumMessages((current) => current.filter(msg => msg.id !== messageId));
+
+          try {
+            let query = supabaseClient
+              .from("event_messages")
+              .delete()
+              .eq("id", messageId);
+
+            // Only filter by user_id if not the professor (announcement author)
+            const isProfessor = selectedForum?.author_id === session.id;
+            if (!isProfessor) {
+              query = query.eq("user_id", session.id);
+            }
+
+            const { error } = await query;
+            if (error) throw error;
+          } catch (err) {
+            console.error("Delete message error:", err);
+            // If error, reload messages to revert
+            if (selectedForum) {
+              loadForumMessages(selectedForum.id);
+            }
+          }
+        };
+
+        useEffect(() => {
+          if (currentView === "forums" && selectedForum) {
+            loadForumMessages(selectedForum.id);
+            loadForumUsers(selectedForum.id);
+
+            // Track online users with presence
+            const presenceChannel = supabaseClient
+              .channel(`forum-presence-${selectedForum.id}`)
+              .on('presence', { event: 'sync' }, () => {
+                const state = presenceChannel.presenceState();
+                const users = Object.values(state).flat().map(p => p.user_name);
+                setOnlineUsers([...new Set(users)]); // Remove duplicates
+              })
+              .on('presence', { event: 'join' }, ({ key, newPresences }) => {
+                const users = Object.values(presenceChannel.presenceState()).flat().map(p => p.user_name);
+                setOnlineUsers([...new Set(users)]);
+              })
+              .on('presence', { event: 'leave' }, ({ key, leftPresences }) => {
+                const users = Object.values(presenceChannel.presenceState()).flat().map(p => p.user_name);
+                setOnlineUsers([...new Set(users)]);
+              })
+              .subscribe(async (status) => {
+                if (status === 'SUBSCRIBED' && session) {
+                  await presenceChannel.track({
+                    user_id: session.id,
+                    user_name: currentAccount?.username || session.email
+                  });
+                }
+              });
+
+            presenceChannelRef.current = presenceChannel;
+
+            // Listen for new messages
+            const messageChannel = supabaseClient
+              .channel(`forum-messages-${selectedForum.id}`)
+              .on(
+                "postgres_changes",
+                {
+                  event: "*",
+                  schema: "public",
+                  table: "event_messages",
+                  filter: `event_id=eq.${selectedForum.id}`,
+                },
+                (payload) => {
+                  if (payload.eventType === "INSERT") {
+                    setForumMessages((current) => [...current, payload.new]);
+                  } else if (payload.eventType === "DELETE") {
+                    setForumMessages((current) => current.filter(msg => msg.id !== payload.old.id));
+                  }
+                },
+              )
+              .subscribe();
+
+            return () => {
+              supabaseClient.removeChannel(presenceChannel);
+              supabaseClient.removeChannel(messageChannel);
+              setOnlineUsers([]);
+              setAllForumUsers([]);
+            };
+          } else {
+            setForumMessages([]);
+            setOnlineUsers([]);
+          }
+        }, [currentView, selectedForum, supabaseClient, session, currentAccount]);
+
+        // Removed auto-scroll when messages load
+
         const counts = useMemo(() => {
           const bySchool = announcements.reduce((acc, item) => {
             acc[item.school] = (acc[item.school] || 0) + 1;
@@ -1631,14 +1792,23 @@ if (categoryFromHash) {
           const filtered = selectedSchool === "Todas"
             ? announcements
             : announcements.filter(a => a.school === selectedSchool);
-          
+
           const byCategory = filtered.reduce((acc, item) => {
             acc[item.category] = (acc[item.category] || 0) + 1;
             return acc;
           }, {});
-          
+
           return byCategory;
         }, [announcements, selectedSchool]);
+
+        const myForums = useMemo(() => {
+          if (!session) return [];
+          return announcements.filter((a) => {
+            const isRegistered = a.user_registered;
+            const isAuthor = a.author_id === session.id;
+            return isRegistered || isAuthor;
+          });
+        }, [announcements, session]);
 
         const calendarEvents = useMemo(() => {
           return announcements
@@ -3301,6 +3471,179 @@ if (categoryFromHash) {
                         </section>
                       ) : null}
 
+                      {currentView === "forums" ? (
+                        <section className="panel space-y-5 rounded-xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                                Comunicação
+                              </p>
+                              <h2 className="mt-1 text-2xl font-bold text-ink-950">
+                                Fóruns de Eventos
+                              </h2>
+                              <p className="mt-1 text-sm text-slate-500">
+                                Discussões dos eventos onde está inscrito ou é o autor.
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => navigateToSection("feed")}
+                              className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-ink-700 transition hover:bg-slate-50"
+                            >
+                              Voltar ao feed
+                            </button>
+                          </div>
+
+                            <div className="grid gap-6 lg:grid-cols-[320px_1fr_200px]">
+                             {/* Lista de Fóruns */}
+                             <div className="space-y-3">
+                               <h3 className="text-sm font-semibold text-ink-700">
+                                 Meus Fóruns ({myForums.length})
+                               </h3>
+                               <div className="max-h-[500px] space-y-2 overflow-y-auto">
+                                 {myForums.length > 0 ? (
+                                   myForums.map((forum) => (
+                                     <button
+                                       key={forum.id}
+                                       onClick={() => {
+                                         setSelectedForum(forum);
+                                         loadForumMessages(forum.id);
+                                       }}
+                                       className={`w-full rounded-lg border p-3 text-left transition-all ${
+                                         selectedForum?.id === forum.id
+                                           ? "border-ink-900 bg-ink-50"
+                                           : "border-slate-200 bg-white hover:border-slate-300"
+                                       }`}
+                                     >
+                                       <p className="text-sm font-semibold text-ink-950">
+                                         {forum.title}
+                                       </p>
+                                       <p className="mt-1 text-xs text-slate-500">
+                                         {forum.category} · {schoolConfig[forum.school]?.label}
+                                       </p>
+                                     </button>
+                                   ))
+                                 ) : (
+                                   <p className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+                                     Nenhum fórum disponível. Inscreva-se em eventos para participar.
+                                   </p>
+                                 )}
+                               </div>
+                             </div>
+
+                             {/* Chat do Fórum */}
+                             <div className="flex flex-col rounded-xl border border-slate-200 bg-slate-50/50">
+                               {selectedForum ? (
+                                 <>
+                                   <div className="border-b border-slate-200 bg-white px-4 py-3 rounded-t-xl">
+                                     <p className="text-sm font-semibold text-ink-950">
+                                       {selectedForum.title}
+                                     </p>
+                                     <p className="text-xs text-slate-500">
+                                       {selectedForum.description?.slice(0, 60)}...
+                                     </p>
+                                   </div>
+
+                                   <div className="flex-1 space-y-3 overflow-y-auto p-4" style={{ minHeight: "400px", maxHeight: "500px" }}>
+                                     {forumMessages.map((msg) => (
+                                       <div
+                                         key={msg.id}
+                                         className={`flex group ${msg.user_id === session?.id ? "justify-end" : "justify-start"}`}
+                                       >
+                                         <div
+                                           className={`relative max-w-[70%] rounded-lg px-3 py-2 text-sm ${
+                                             msg.user_id === session?.id
+                                               ? "bg-ink-950 text-white"
+                                               : "bg-white border border-slate-200 text-ink-950"
+                                           }`}
+                                         >
+                                           <p className="text-xs font-semibold mb-1">
+                                             {msg.user_name}
+                                           </p>
+                                           <p>{msg.content}</p>
+                                           <p className="mt-1 text-[10px] opacity-60">
+                                             {new Date(msg.created_at).toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" })}
+                                           </p>
+                                           {(msg.user_id === session?.id || selectedForum?.author_id === session?.id) && (
+                                             <button
+                                               onClick={() => {
+                                                 if (window.confirm("Apagar esta mensagem?")) {
+                                                   deleteForumMessage(msg.id);
+                                                 }
+                                               }}
+                                               className="absolute -top-2 -right-2 invisible flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white transition hover:bg-red-600 group-hover:visible"
+                                               title="Apagar mensagem"
+                                             >
+                                               ×
+                                             </button>
+                                           )}
+                                         </div>
+                                       </div>
+                                     ))}
+                                     <div ref={forumMessagesEndRef} />
+                                   </div>
+
+                                   <div className="border-t border-slate-200 bg-white p-3 rounded-b-xl">
+                                     <form
+                                       onSubmit={(e) => {
+                                         e.preventDefault();
+                                         sendForumMessage();
+                                       }}
+                                       className="flex gap-2"
+                                     >
+                                       <input
+                                         value={newMessage}
+                                         onChange={(e) => setNewMessage(e.target.value)}
+                                         placeholder="Escreva uma mensagem..."
+                                         className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-ink-700"
+                                       />
+                                       <button
+                                         type="submit"
+                                         disabled={!newMessage.trim()}
+                                         className="rounded-lg bg-ink-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-ink-800 disabled:opacity-50"
+                                       >
+                                         Enviar
+                                       </button>
+                                     </form>
+                                   </div>
+                                 </>
+                               ) : (
+                                 <div className="flex flex-1 items-center justify-center p-8">
+                                   <p className="text-sm text-slate-500">
+                                     Selecione um fórum para ver as mensagens.
+                                   </p>
+                                 </div>
+                               )}
+                             </div>
+
+                             {/* Users Sidebar - Online e Offline */}
+                             <div className="rounded-xl border border-slate-200 bg-white p-3">
+                               <h3 className="text-xs font-semibold text-ink-700 mb-3">
+                                 Utilizadores ({allForumUsers.length})
+                               </h3>
+                               <div className="space-y-2 max-h-[500px] overflow-y-auto">
+                                 {allForumUsers.length > 0 ? (
+                                   allForumUsers.map((userName, index) => {
+                                     const isOnline = onlineUsers.includes(userName);
+                                     return (
+                                       <div key={index} className="flex items-center gap-2 text-sm">
+                                         <div className={`h-2 w-2 rounded-full ${isOnline ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                                         <span className={`${isOnline ? 'text-slate-700 font-medium' : 'text-slate-400'}`}>
+                                           {userName}
+                                         </span>
+                                         {isOnline && <span className="text-[10px] text-green-600">online</span>}
+                                       </div>
+                                     );
+                                   })
+                                 ) : (
+                                   <p className="text-xs text-slate-500">Nenhum utilizador</p>
+                                 )}
+                               </div>
+                             </div>
+                           </div>
+                        </section>
+                      ) : null}
+
                       {currentView === "category" && currentAccount.role !== "Professor" ? (
                         <>
                           <div
@@ -3515,6 +3858,16 @@ if (categoryFromHash) {
               }`}
             >
               Calendário
+            </button>
+            <button
+              onClick={navigateToForumsPage}
+              className={`relative rounded-full px-6 py-2.5 text-sm font-semibold transition-all duration-300 ${
+                currentView === "forums"
+                  ? "bg-ink-950 text-white shadow-md scale-100"
+                  : "text-slate-500 hover:bg-slate-100/80 hover:text-ink-900 scale-95 hover:scale-100"
+              }`}
+            >
+              Fóruns
             </button>
           </nav>
 
