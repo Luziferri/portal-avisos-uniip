@@ -1597,11 +1597,16 @@ const matchesCategory =
             if (userIds.length > 0) {
               const { data: profiles, error: profError } = await supabaseClient
                 .from("profiles")
-                .select("id, username")
+                .select("id, username, full_name")
                 .in("id", userIds);
 
               if (!profError && profiles) {
-                setAllForumUsers(profiles.map(p => p.username || 'Utilizador'));
+                setAllForumUsers(
+                  profiles.map((profile) => ({
+                    id: profile.id,
+                    username: profile.username || profile.full_name || "Utilizador",
+                  })),
+                );
               }
             }
           } catch (err) {
@@ -1666,15 +1671,24 @@ const matchesCategory =
               .channel(`forum-presence-${selectedForum.id}`)
               .on('presence', { event: 'sync' }, () => {
                 const state = presenceChannel.presenceState();
-                const users = Object.values(state).flat().map(p => p.user_name);
+                const users = Object.values(state)
+                  .flat()
+                  .map((presence) => presence.user_id)
+                  .filter(Boolean);
                 setOnlineUsers([...new Set(users)]); // Remove duplicates
               })
               .on('presence', { event: 'join' }, ({ key, newPresences }) => {
-                const users = Object.values(presenceChannel.presenceState()).flat().map(p => p.user_name);
+                const users = Object.values(presenceChannel.presenceState())
+                  .flat()
+                  .map((presence) => presence.user_id)
+                  .filter(Boolean);
                 setOnlineUsers([...new Set(users)]);
               })
               .on('presence', { event: 'leave' }, ({ key, leftPresences }) => {
-                const users = Object.values(presenceChannel.presenceState()).flat().map(p => p.user_name);
+                const users = Object.values(presenceChannel.presenceState())
+                  .flat()
+                  .map((presence) => presence.user_id)
+                  .filter(Boolean);
                 setOnlineUsers([...new Set(users)]);
               })
               .subscribe(async (status) => {
@@ -3633,13 +3647,13 @@ onClick={() => {
                                </h3>
                                <div className="space-y-2 max-h-[500px] overflow-y-auto">
                                  {allForumUsers.length > 0 ? (
-                                   allForumUsers.map((userName, index) => {
-                                     const isOnline = onlineUsers.includes(userName);
+                                   allForumUsers.map((user, index) => {
+                                     const isOnline = onlineUsers.includes(user.id);
                                      return (
-                                       <div key={index} className="flex items-center gap-2 text-sm">
+                                       <div key={user.id || index} className="flex items-center gap-2 text-sm">
                                          <div className={`h-2 w-2 rounded-full ${isOnline ? 'bg-green-500' : 'bg-gray-300'}`}></div>
                                          <span className={`${isOnline ? 'text-slate-700 font-medium' : 'text-slate-400'}`}>
-                                           {userName}
+                                           {user.username}
                                          </span>
                                          {isOnline && <span className="text-[10px] text-green-600">online</span>}
                                        </div>
