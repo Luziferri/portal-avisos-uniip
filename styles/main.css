@@ -172,43 +172,53 @@
 
       /* Animação para cards de categorias */
       .category-card {
-        animation: categoryCardEnter 500ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        animation: categoryCardEnter 600ms cubic-bezier(0.22, 1, 0.36, 1) both;
         opacity: 0;
+        will-change: transform, opacity, filter;
       }
 
       @keyframes categoryCardEnter {
         from {
           opacity: 0;
-          transform: translateY(20px) scale(0.95);
+          transform: translateY(24px) scale(0.95);
+          filter: blur(4px);
+        }
+        50% {
+          filter: blur(0px);
         }
         to {
           opacity: 1;
           transform: translateY(0) scale(1);
+          filter: blur(0px);
         }
       }
 
-      .category-card:nth-child(1) { animation-delay: 0ms; }
-      .category-card:nth-child(2) { animation-delay: 60ms; }
-      .category-card:nth-child(3) { animation-delay: 120ms; }
-      .category-card:nth-child(4) { animation-delay: 180ms; }
-      .category-card:nth-child(5) { animation-delay: 240ms; }
-      .category-card:nth-child(6) { animation-delay: 300ms; }
-      .category-card:nth-child(7) { animation-delay: 360ms; }
-      .category-card:nth-child(8) { animation-delay: 420ms; }
+      /* Hover elevado com glow */
+      .category-card:hover {
+        box-shadow: 0 8px 24px -4px rgba(15, 29, 46, 0.12), 0 2px 8px -2px rgba(15, 29, 46, 0.08) !important;
+      }
+
+      html.theme-dark .category-card:hover {
+        box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.4), 0 2px 8px -2px rgba(0, 0, 0, 0.3) !important;
+      }
 
       /* Animação de saída para cards de categorias */
       .category-card-exit {
-        animation: categoryCardExit 400ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        animation: categoryCardExit 220ms cubic-bezier(0.4, 0, 1, 1) both;
+        will-change: transform, opacity, filter;
+        pointer-events: none;
       }
 
       @keyframes categoryCardExit {
         from {
           opacity: 1;
           transform: translateY(0) scale(1);
+          filter: blur(0px);
         }
         to {
           opacity: 0;
-          transform: translateY(20px) scale(0.95);
+          transform: translateY(-8px) scale(0.97);
+          filter: blur(2px);
         }
       }
 

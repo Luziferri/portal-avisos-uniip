@@ -1581,29 +1581,50 @@ if (categoryFromHash) {
 
         // Controlar animações de entrada e saída das categorias
         useEffect(() => {
-          const currentCategories = new Set(categoriesBySchool);
-          const prevCategories = new Set(displayedCategories.filter(c => !exitingCategories.includes(c)));
-          
-          // Categorias que estão a sair
-          const toExit = displayedCategories.filter(c => !currentCategories.has(c) && !exitingCategories.includes(c));
-          
-          if (toExit.length > 0) {
-            setExitingCategories(prev => [...prev, ...toExit]);
-            
-            // Após a animação de saída, remover da lista
-            const timer = setTimeout(() => {
-              setExitingCategories(prev => prev.filter(c => !toExit.includes(c)));
-              setDisplayedCategories(prev => prev.filter(c => !toExit.includes(c)));
-            }, 400); // Duração da animação de saída
-            
-            return () => clearTimeout(timer);
+          const previousCategories = prevCategoriesRef.current;
+          const currentCategories = categoriesBySchool;
+
+          const toExit = previousCategories.filter(
+            (category) => !currentCategories.includes(category),
+          );
+
+          if (toExit.length === 0) {
+            setDisplayedCategories(currentCategories);
+            prevCategoriesRef.current = currentCategories;
+            return;
           }
-          
-          // Categorias que estão a entrar
-          const toEnter = categoriesBySchool.filter(c => !displayedCategories.includes(c));
-          if (toEnter.length > 0 || displayedCategories.length === 0) {
-            setDisplayedCategories(categoriesBySchool);
-          }
+
+          setExitingCategories((previous) => [
+            ...new Set([...previous, ...toExit]),
+          ]);
+
+          setDisplayedCategories((previousDisplayed) => {
+            const nextDisplayed = [...previousDisplayed];
+
+            currentCategories.forEach((category) => {
+              if (!nextDisplayed.includes(category)) {
+                nextDisplayed.push(category);
+              }
+            });
+
+            toExit.forEach((category) => {
+              if (!nextDisplayed.includes(category)) {
+                nextDisplayed.push(category);
+              }
+            });
+
+            return nextDisplayed;
+          });
+
+          const timer = setTimeout(() => {
+            setExitingCategories((previous) =>
+              previous.filter((category) => !toExit.includes(category)),
+            );
+            setDisplayedCategories(currentCategories);
+          }, 320);
+
+          prevCategoriesRef.current = currentCategories;
+          return () => clearTimeout(timer);
         }, [categoriesBySchool]);
 
         const countsBySchoolAndCategory = useMemo(() => {
@@ -2604,7 +2625,9 @@ if (categoryFromHash) {
                                      className={`group flex flex-col justify-between rounded-xl border border-slate-200/80 bg-white p-5 text-left shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-slate-300 hover:shadow-md ${
                                        isExiting ? 'category-card-exit' : 'category-card'
                                      }`}
-                                     style={{ animationDelay: isExiting ? '0ms' : `${index * 60}ms` }}
+                                     style={{
+                                       animationDelay: isExiting ? '0ms' : `${Math.round(index * 60 * Math.pow(0.85, index))}ms`,
+                                     }}
                                    >
                                     <div>
                                       <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400 transition-colors group-hover:text-slate-500">
@@ -2629,7 +2652,7 @@ if (categoryFromHash) {
 
                            {/* Categorias a sair (invisíveis mas no DOM para animar) */}
                            {exitingCategories.length > 0 && (
-                             <div className="hidden">
+                             <div className="sr-only" aria-hidden="true">
                                {exitingCategories.map(category => (
                                  <div key={`exit-${category}`} className="category-card-exit" />
                                ))}
